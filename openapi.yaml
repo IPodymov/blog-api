@@ -1,0 +1,3882 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Multi-user Blog API",
+    "version": "1.0.0",
+    "description": "Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. На любом маршруте может быть 401, если передан невалидный Authorization."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Локальный запуск"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Auth operations"
+    },
+    {
+      "name": "Users",
+      "description": "Users operations"
+    },
+    {
+      "name": "Articles",
+      "description": "Articles operations"
+    },
+    {
+      "name": "Views",
+      "description": "Views operations"
+    },
+    {
+      "name": "Statistics",
+      "description": "Statistics operations"
+    },
+    {
+      "name": "Comments",
+      "description": "Comments operations"
+    },
+    {
+      "name": "Likes",
+      "description": "Likes operations"
+    },
+    {
+      "name": "Tags",
+      "description": "Tags operations"
+    },
+    {
+      "name": "Operations",
+      "description": "Operations operations"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Регистрация пользователя",
+        "description": "Роль всегда user. Возвращает токены только в этом приватном ответе. Rate limit всех auth: 10 запросов/мин на сетевой адрес.",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                },
+                "example": {
+                  "access_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "refresh_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "token_type": "Bearer",
+                  "expires_in": 900
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Register"
+              },
+              "example": {
+                "username": "alice",
+                "email": "alice@example.org",
+                "password": "example-password-2026"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Вход",
+        "description": "Вход",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                },
+                "example": {
+                  "access_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "refresh_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "token_type": "Bearer",
+                  "expires_in": 900
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              },
+              "example": {
+                "email": "alice@example.org",
+                "password": "example-password-2026"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refreshTokens",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Ротация refresh-токена",
+        "description": "Одноразовая ротация. Повторное использование использованного токена отзывает всё семейство, включая access-токены. Одновременные refresh-запросы клиент должен сериализовать. Абсолютный срок семейства не продлевается.",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                },
+                "example": {
+                  "access_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "refresh_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "token_type": "Bearer",
+                  "expires_in": 900
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Refresh"
+              },
+              "example": {
+                "refresh_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Выход и отзыв семейства",
+        "description": "Идемпотентно, включая неизвестный токен корректного формата. Отзывает также все access-токены семейства.",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Refresh"
+              },
+              "example": {
+                "refresh_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "operationId": "getPublicProfile",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Публичный профиль",
+        "description": "Email и роль отсутствуют. Счётчики только опубликованных статей.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                },
+                "example": {
+                  "id": 1,
+                  "username": "alice",
+                  "display_name": "Алиса",
+                  "avatar_url": "https://example.org/avatar.png",
+                  "bio": "a",
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "statistics": {
+                    "published_articles": 0,
+                    "views_all_time": 0,
+                    "likes_current": 0,
+                    "comments_current": 0
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/articles": {
+      "get": {
+        "operationId": "getAuthorArticles",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Опубликованные статьи автора",
+        "description": "Опубликованные статьи автора",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          },
+          {
+            "$ref": "#/components/parameters/Tag"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Собственный профиль с email",
+        "description": "Собственный профиль с email",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnUser"
+                },
+                "example": {
+                  "id": 1,
+                  "username": "alice",
+                  "display_name": "Алиса",
+                  "avatar_url": "https://example.org/avatar.png",
+                  "bio": "a",
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "email": "alice@example.org",
+                  "role": "user"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Редактирование собственного профиля",
+        "description": "Редактирование собственного профиля",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnUser"
+                },
+                "example": {
+                  "id": 1,
+                  "username": "alice",
+                  "display_name": "Алиса",
+                  "avatar_url": "https://example.org/avatar.png",
+                  "bio": "a",
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "email": "alice@example.org",
+                  "role": "user"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilePatch"
+              },
+              "example": {
+                "display_name": "a",
+                "avatar_url": "a",
+                "bio": "a"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/articles": {
+      "get": {
+        "operationId": "getMyArticles",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Все собственные статьи",
+        "description": "Все собственные статьи",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          },
+          {
+            "$ref": "#/components/parameters/Status"
+          },
+          {
+            "$ref": "#/components/parameters/Tag"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/me/statistics": {
+      "get": {
+        "operationId": "getMyStatistics",
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Сводная статистика автора",
+        "description": "Все существующие свои статьи. Возвращает 5 самых просматриваемых за период, включая нулевые. Каждый день периода присутствует, в том числе с 0. Лайки и комментарии текущие, не события периода.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Statistics"
+                },
+                "example": {
+                  "published_articles": 0,
+                  "draft_articles": 0,
+                  "views_all_time": 0,
+                  "likes_current": 0,
+                  "comments_current": 0,
+                  "date_from": "2026-10-13",
+                  "date_to": "2026-10-13",
+                  "timezone": "UTC",
+                  "views_period": 0,
+                  "daily": [],
+                  "top_articles": []
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/me/statistics/articles": {
+      "get": {
+        "operationId": "getMyArticleStatistics",
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Показатели собственных статей",
+        "description": "Показатели собственных статей",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/StatSort"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleStatPage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/articles": {
+      "get": {
+        "operationId": "listArticles",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Публичный список публикаций",
+        "description": "Публичный список публикаций",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          },
+          {
+            "$ref": "#/components/parameters/Author"
+          },
+          {
+            "$ref": "#/components/parameters/Tag"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createArticle",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Создать статью",
+        "description": "Создать статью",
+        "parameters": [],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                },
+                "example": {
+                  "id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "title": "Первый пост",
+                  "slug": "first-post",
+                  "description": "Краткое описание",
+                  "content": "# Привет\nМой первый пост.",
+                  "tags": [],
+                  "status": "draft",
+                  "version": 1,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z",
+                  "published_at": null,
+                  "views": 0,
+                  "likes": 0,
+                  "comments": 0,
+                  "popularity": 0,
+                  "liked_by_me": false,
+                  "canonical_url": null
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0,
+                  "example": "\"1\""
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleInput"
+              },
+              "example": {
+                "title": "Первый пост",
+                "slug": "first-post",
+                "description": "Краткое описание",
+                "content": "# Привет\nМой первый пост.",
+                "tags": [],
+                "status": "draft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}": {
+      "get": {
+        "operationId": "getArticle",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Получить статью",
+        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из PUBLIC_SITE_URL + /articles/{slug}; у черновика null.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                },
+                "example": {
+                  "id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "title": "Первый пост",
+                  "slug": "first-post",
+                  "description": "Краткое описание",
+                  "content": "# Привет\nМой первый пост.",
+                  "tags": [],
+                  "status": "draft",
+                  "version": 1,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z",
+                  "published_at": null,
+                  "views": 0,
+                  "likes": 0,
+                  "comments": 0,
+                  "popularity": 0,
+                  "liked_by_me": false,
+                  "canonical_url": null
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0,
+                  "example": "\"1\""
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateArticle",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Изменить статью",
+        "description": "Автор либо администратор. Проверка версии атомарна. Снятие публикации сохраняет просмотры, лайки и комментарии для личной аналитики; из публичной статистики статья исчезает.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                },
+                "example": {
+                  "id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "title": "Первый пост",
+                  "slug": "first-post",
+                  "description": "Краткое описание",
+                  "content": "# Привет\nМой первый пост.",
+                  "tags": [],
+                  "status": "draft",
+                  "version": 1,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z",
+                  "published_at": null,
+                  "views": 0,
+                  "likes": 0,
+                  "comments": 0,
+                  "popularity": 0,
+                  "liked_by_me": false,
+                  "canonical_url": null
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0,
+                  "example": "\"2\""
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "412": {
+            "$ref": "#/components/responses/E412"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "428": {
+            "$ref": "#/components/responses/E428"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticlePatch"
+              },
+              "example": {
+                "title": "Первый пост",
+                "slug": "first-post",
+                "description": "Краткое описание",
+                "content": "# Привет\nМой первый пост.",
+                "tags": [],
+                "status": "draft"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteArticle",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Удалить статью",
+        "description": "Автор либо администратор. Физическое удаление каскадно удаляет комментарии, лайки, связи тегов, дедупликацию и агрегаты просмотров; все показатели автора пересчитываются сразу.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно."
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "412": {
+            "$ref": "#/components/responses/E412"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "428": {
+            "$ref": "#/components/responses/E428"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/articles-by-slug/{slug}": {
+      "get": {
+        "operationId": "getArticleBySlug",
+        "tags": [
+          "Articles"
+        ],
+        "summary": "Получить статью",
+        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из PUBLIC_SITE_URL + /articles/{slug}; у черновика null.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                },
+                "example": {
+                  "id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "title": "Первый пост",
+                  "slug": "first-post",
+                  "description": "Краткое описание",
+                  "content": "# Привет\nМой первый пост.",
+                  "tags": [],
+                  "status": "draft",
+                  "version": 1,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z",
+                  "published_at": null,
+                  "views": 0,
+                  "likes": 0,
+                  "comments": 0,
+                  "popularity": 0,
+                  "liked_by_me": false,
+                  "canonical_url": null
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0,
+                  "example": "\"1\""
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}/views": {
+      "post": {
+        "operationId": "registerView",
+        "tags": [
+          "Views"
+        ],
+        "summary": "Зарегистрировать фактическое открытие",
+        "description": "Без тела. Только опубликованная статья. Автор и администратор: counted=false. Один учитываемый просмотр на посетителя/статью за VIEW_INTERVAL (по умолчанию 30 минут); отклонённый дубль окно не продлевает. Конкурентные запросы защищены транзакцией. Для авторизованного посетителя используется ID аккаунта, для гостя — подписанный сервером случайный cookie blog_visitor. Невалидный cookie заменяется. IP не хранится в аналитике. Лимит 60 запросов/мин на сетевой адрес. События просмотров и уникальные посетители не равнозначны; уникальные посетители не рассчитываются.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "blog_visitor",
+            "in": "cookie",
+            "required": false,
+            "description": "Не задавайте вручную. Сервер выдаёт подписанный непрозрачный cookie: HttpOnly, SameSite=Lax, Path=/api/v1, Max-Age=31536000, Secure по конфигурации (true в production). Cross-origin same-site клиент использует credentials: include и разрешённый CORS origin. Cross-site cookie может блокироваться; такой хостинг не поддерживает точную гостевую дедупликацию. Удаление cookie и смена браузера создают нового посетителя. Первые параллельные запросы без cookie также могут посчитаться отдельно.",
+            "schema": {
+              "type": "string",
+              "minLength": 0
+            }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                },
+                "example": {
+                  "counted": false
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0
+                },
+                "description": "Для нового/невалидного гостевого cookie."
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}/statistics": {
+      "get": {
+        "operationId": "getArticleStatistics",
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Подробная статистика статьи",
+        "description": "Только автор или администратор, включая черновики. UTC, границы дат включительны. Все дни с нулями; просмотры all-time и за период, лайки/комментарии текущие.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleStatistics"
+                },
+                "example": {
+                  "article_id": 1,
+                  "views_all_time": 0,
+                  "likes_current": 0,
+                  "comments_current": 0,
+                  "date_from": "2026-10-13",
+                  "date_to": "2026-10-13",
+                  "timezone": "UTC",
+                  "views_period": 0,
+                  "daily": []
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}/comments": {
+      "get": {
+        "operationId": "listComments",
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Комментарии статьи",
+        "description": "Публикация доступна всем; черновик только автору и администратору. Плоский список ID ASC; parent_id связывает ответы. Удалённые комментарии представлены tombstone: content пустой, deleted=true; в счётчик не входят.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createComment",
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Добавить комментарий или ответ",
+        "description": "Только к опубликованным статьям. Максимальная глубина ответов 1; parent_id должен указывать на неудалённый корневой комментарий этой же статьи.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                },
+                "example": {
+                  "id": 1,
+                  "article_id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "parent_id": null,
+                  "depth": 0,
+                  "content": "a",
+                  "deleted": false,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentInput"
+              },
+              "example": {
+                "content": "Отличная статья!",
+                "parent_id": null
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/comments/{comment_id}": {
+      "patch": {
+        "operationId": "updateComment",
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Изменить свой комментарий",
+        "description": "Автор комментария или администратор; удалённый комментарий изменять нельзя.",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                },
+                "example": {
+                  "id": 1,
+                  "article_id": 1,
+                  "author": {
+                    "id": 1,
+                    "username": "alice",
+                    "display_name": "Алиса",
+                    "avatar_url": "https://example.org/avatar.png",
+                    "bio": "a",
+                    "created_at": "2026-10-13T12:00:00Z"
+                  },
+                  "parent_id": null,
+                  "depth": 0,
+                  "content": "a",
+                  "deleted": false,
+                  "created_at": "2026-10-13T12:00:00Z",
+                  "updated_at": "2026-10-13T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentPatch"
+              },
+              "example": {
+                "content": "Спасибо за статью!"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteComment",
+        "tags": [
+          "Comments"
+        ],
+        "summary": "Удалить свой комментарий",
+        "description": "Автор комментария или администратор. Soft delete с очисткой текста, ответы сохраняются, повторный DELETE существующего tombstone идемпотентен.",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно."
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}/like": {
+      "put": {
+        "operationId": "likeArticle",
+        "tags": [
+          "Likes"
+        ],
+        "summary": "Поставить лайк",
+        "description": "Только опубликованная статья. Идемпотентно: уникальная пара user/article.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Like"
+                },
+                "example": {
+                  "likes": 0,
+                  "liked_by_me": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unlikeArticle",
+        "tags": [
+          "Likes"
+        ],
+        "summary": "Снять лайк",
+        "description": "Только опубликованная статья. Идемпотентно, даже если лайка нет.",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Like"
+                },
+                "example": {
+                  "likes": 0,
+                  "liked_by_me": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          }
+        }
+      }
+    },
+    "/api/v1/tags": {
+      "get": {
+        "operationId": "listTags",
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Теги опубликованных статей",
+        "description": "Алфавитный порядок name ASC; теги только черновиков не раскрываются.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagPage"
+                },
+                "example": {
+                  "items": [],
+                  "page": 1,
+                  "page_size": 1,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Проверка процесса",
+        "description": "Проверка процесса",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Проверка PostgreSQL",
+        "description": "Проверка PostgreSQL",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "operationId": "getDocs",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Документация API",
+        "description": "Документация API",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "operationId": "getOpenAPI",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Документация API",
+        "description": "Документация API",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 0
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "pattern": "^[a-z0-9_]{3,32}$",
+            "example": "alice",
+            "maxLength": 32
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Алиса",
+            "maxLength": 100
+          },
+          "avatar_url": {
+            "type": "string",
+            "minLength": 0,
+            "example": "https://example.org/avatar.png",
+            "maxLength": 2048
+          },
+          "bio": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "created_at"
+        ]
+      },
+      "OwnUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "pattern": "^[a-z0-9_]{3,32}$",
+            "example": "alice",
+            "maxLength": 32
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Алиса",
+            "maxLength": 100
+          },
+          "avatar_url": {
+            "type": "string",
+            "minLength": 0,
+            "example": "https://example.org/avatar.png",
+            "maxLength": 2048
+          },
+          "bio": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "alice@example.org",
+            "maxLength": 254
+          },
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "admin"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "created_at",
+          "email",
+          "role"
+        ]
+      },
+      "PublicMetrics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "published_articles": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "views_all_time": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "likes_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comments_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "published_articles",
+          "views_all_time",
+          "likes_current",
+          "comments_current"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "pattern": "^[a-z0-9_]{3,32}$",
+            "example": "alice",
+            "maxLength": 32
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Алиса",
+            "maxLength": 100
+          },
+          "avatar_url": {
+            "type": "string",
+            "minLength": 0,
+            "example": "https://example.org/avatar.png",
+            "maxLength": 2048
+          },
+          "bio": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/PublicMetrics"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "avatar_url",
+          "bio",
+          "created_at",
+          "statistics"
+        ]
+      },
+      "ArticleInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Первый пост",
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "first-post",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Краткое описание",
+            "maxLength": 500
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Markdown; клиент отключает raw HTML и очищает результат перед отображением.",
+            "example": "# Привет\nМой первый пост.",
+            "maxLength": 100000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "maxLength": 40
+            },
+            "maxItems": 10
+          },
+          "status": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "default": "draft"
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "content"
+        ]
+      },
+      "ArticlePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Первый пост",
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "first-post",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Краткое описание",
+            "maxLength": 500
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Markdown; клиент отключает raw HTML и очищает результат перед отображением.",
+            "example": "# Привет\nМой первый пост.",
+            "maxLength": 100000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "maxLength": 40
+            },
+            "maxItems": 10
+          },
+          "status": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "default": "draft"
+          }
+        },
+        "required": [],
+        "minProperties": 1,
+        "description": "Отсутствующее поле сохраняет значение; null запрещён. Пустая строка очищает description, [] очищает tags. title/content/slug не могут быть пустыми."
+      },
+      "Article": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "author": {
+            "$ref": "#/components/schemas/User"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Первый пост",
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "first-post",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Краткое описание",
+            "maxLength": 500
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Markdown; клиент отключает raw HTML и очищает результат перед отображением.",
+            "example": "# Привет\nМой первый пост.",
+            "maxLength": 100000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "maxLength": 40
+            },
+            "maxItems": 10
+          },
+          "status": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "default": "draft"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 0,
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "views": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "likes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comments": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "popularity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "views + 5*likes + 3*comments, показатели за всё время/текущие"
+          },
+          "liked_by_me": {
+            "type": "boolean"
+          },
+          "canonical_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 0,
+                "format": "uri",
+                "example": "https://blog.example.org/articles/first-post"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "author",
+          "title",
+          "slug",
+          "description",
+          "content",
+          "tags",
+          "status",
+          "version",
+          "created_at",
+          "updated_at",
+          "published_at",
+          "views",
+          "likes",
+          "comments",
+          "popularity",
+          "liked_by_me",
+          "canonical_url"
+        ]
+      },
+      "ProfilePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100
+          },
+          "avatar_url": {
+            "type": "string",
+            "minLength": 0,
+            "description": "HTTPS URL; пустая строка очищает значение.",
+            "maxLength": 2048
+          },
+          "bio": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          }
+        },
+        "required": [],
+        "minProperties": 1,
+        "description": "Отсутствующее поле сохраняет значение, null запрещён, пустая строка очищает поле."
+      },
+      "CommentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Отличная статья!",
+            "maxLength": 5000
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "description": "Ответ разрешён только корневому неудалённому комментарию этой статьи; максимальная глубина 1."
+      },
+      "CommentPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Спасибо за статью!",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "description": "null и пустая строка запрещены."
+      },
+      "Comment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "article_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "author": {
+            "$ref": "#/components/schemas/User"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "content": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 5000
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "article_id",
+          "author",
+          "parent_id",
+          "depth",
+          "content",
+          "deleted",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "Tokens": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "refresh_token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "token_type": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "example": 900
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token",
+          "token_type",
+          "expires_in"
+        ]
+      },
+      "Register": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "pattern": "^[a-z0-9_]{3,32}$",
+            "example": "alice",
+            "maxLength": 32
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "alice@example.org",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "writeOnly": true,
+            "description": "12..72 байта UTF-8, bcrypt cost 12.",
+            "example": "example-password-2026",
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "password"
+        ]
+      },
+      "Login": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "alice@example.org",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "example": "example-password-2026",
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "Refresh": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "minLength": 43,
+            "writeOnly": true,
+            "description": "Случайный непрозрачный токен; старый токен после ротации использовать нельзя.",
+            "maxLength": 43
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 0,
+                "example": "validation_failed"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 0,
+                "example": "Некорректные данные"
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "example": {
+                      "title": "Недопустимая длина"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "request_id": {
+                "type": "string",
+                "minLength": 0,
+                "example": "qZd0pP6HAZChOcQM_aMmEDVc2qdFKGBWA5jdU7hjHxI"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details",
+              "request_id"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Like": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "likes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "liked_by_me": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "likes",
+          "liked_by_me"
+        ]
+      },
+      "View": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "counted": {
+            "type": "boolean",
+            "description": "false: дедупликация, просмотр автора или администратора."
+          }
+        },
+        "required": [
+          "counted"
+        ]
+      },
+      "Day": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date",
+            "example": "2026-10-13"
+          },
+          "views": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "date",
+          "views"
+        ]
+      },
+      "ArticleStat": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "article": {
+            "$ref": "#/components/schemas/Article"
+          },
+          "views_period": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "article",
+          "views_period"
+        ]
+      },
+      "Statistics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "published_articles": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "draft_articles": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "views_all_time": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "likes_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comments_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "date_from": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date"
+          },
+          "date_to": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "UTC"
+            ]
+          },
+          "views_period": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Day"
+            }
+          },
+          "top_articles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArticleStat"
+            },
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "published_articles",
+          "draft_articles",
+          "views_all_time",
+          "likes_current",
+          "comments_current",
+          "date_from",
+          "date_to",
+          "timezone",
+          "views_period",
+          "daily",
+          "top_articles"
+        ],
+        "description": "Все собственные существующие статьи, включая черновики и снятые с публикации. Текущие лайки/комментарии; только просмотры имеют историю."
+      },
+      "ArticleStatistics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "views_all_time": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "likes_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comments_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "date_from": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date"
+          },
+          "date_to": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "UTC"
+            ]
+          },
+          "views_period": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Day"
+            }
+          }
+        },
+        "required": [
+          "article_id",
+          "views_all_time",
+          "likes_current",
+          "comments_current",
+          "date_from",
+          "date_to",
+          "timezone",
+          "views_period",
+          "daily"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "ok",
+              "ready"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ArticlePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Article"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "ArticleStatPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArticleStat"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "CommentPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "TagPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "Номер страницы; offset pagination.",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1,
+          "maximum": 100000,
+          "default": 1
+        }
+      },
+      "PageSize": {
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "description": "",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "Sort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Убывание; ID DESC — стабильное разрешение равенств. При живых изменениях состав страниц может меняться.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "enum": [
+            "published_at",
+            "views",
+            "popularity",
+            "created_at"
+          ],
+          "default": "published_at"
+        }
+      },
+      "StatSort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Убывание, затем ID DESC.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "enum": [
+            "views_period",
+            "views",
+            "likes",
+            "comments",
+            "published_at"
+          ],
+          "default": "views_period"
+        }
+      },
+      "From": {
+        "name": "date_from",
+        "in": "query",
+        "required": false,
+        "description": "Включительно, UTC; по умолчанию сегодня минус 29 дней.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "format": "date"
+        }
+      },
+      "To": {
+        "name": "date_to",
+        "in": "query",
+        "required": false,
+        "description": "Включительно, UTC; по умолчанию сегодня. Не будущая дата. Максимум MAX_STATISTICS_DAYS (по умолчанию 366) дней.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "format": "date"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "description": "Обязательная версия из ETag. Несовпадение: 412; отсутствие: 428. DELETE тоже защищён от потери изменений.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "pattern": "^\"[1-9][0-9]*\"$",
+          "example": "\"1\""
+        }
+      },
+      "Author": {
+        "name": "author_id",
+        "in": "query",
+        "required": false,
+        "description": "",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1
+        }
+      },
+      "Tag": {
+        "name": "tag",
+        "in": "query",
+        "required": false,
+        "description": "Один тег; точное совпадение.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 40
+        }
+      },
+      "Search": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "PostgreSQL full text simple; заголовок, описание, Markdown. Лимит 200 байт.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 200
+        }
+      },
+      "Status": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Только свои статьи; отсутствие означает оба статуса.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "enum": [
+            "draft",
+            "published"
+          ]
+        }
+      }
+    },
+    "responses": {
+      "E400": {
+        "description": "Некорректный JSON, неизвестное поле или форма запроса.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Некорректный JSON, неизвестное поле или форма запроса.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E401": {
+        "description": "Необходима авторизация / токен или учётные данные недействительны.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "authentication_required",
+                "message": "Необходима авторизация / токен или учётные данные недействительны.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E403": {
+        "description": "Недостаточно прав или Origin не разрешён.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Недостаточно прав или Origin не разрешён.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E404": {
+        "description": "Ресурс не найден; чужие черновики также 404.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "message": "Ресурс не найден; чужие черновики также 404.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E405": {
+        "description": "Метод не поддерживается.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Метод не поддерживается.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E409": {
+        "description": "Email, username или slug уже используется.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Email, username или slug уже используется.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E412": {
+        "description": "Версия статьи изменилась.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "version_conflict",
+                "message": "Версия статьи изменилась.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E413": {
+        "description": "Превышен лимит тела 512 KiB.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Превышен лимит тела 512 KiB.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E415": {
+        "description": "Ожидается application/json.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Ожидается application/json.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E422": {
+        "description": "Ошибка валидации поля или диапазона дат.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "validation_failed",
+                "message": "Ошибка валидации поля или диапазона дат.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E428": {
+        "description": "Отсутствует If-Match.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Отсутствует If-Match.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E429": {
+        "description": "Превышен лимит запросов.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "rate_limited",
+                "message": "Превышен лимит запросов.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "string",
+              "minLength": 0
+            },
+            "description": "60 секунд"
+          }
+        }
+      },
+      "E500": {
+        "description": "Внутренняя ошибка.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "Внутренняя ошибка.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      },
+      "E503": {
+        "description": "PostgreSQL недоступен.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "request_failed",
+                "message": "PostgreSQL недоступен.",
+                "details": null,
+                "request_id": "request-example"
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Непрозрачный 256-битный access-токен, TTL по умолчанию 15 минут; БД хранит только SHA-256."
+      }
+    }
+  }
+}
