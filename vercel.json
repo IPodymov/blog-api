@@ -4,10 +4,6 @@
   "installCommand": "npm ci --ignore-scripts && go mod download",
   "buildCommand": "sh scripts/vercel-build.sh",
   "regions": ["fra1"],
-  "proxy": {
-    "entrypoint": "proxy.js",
-    "matcher": ["/api/v1/articles/:path*"]
-  },
   "crons": [
     { "path": "/internal/maintenance", "schedule": "0 3 * * *" }
   ]

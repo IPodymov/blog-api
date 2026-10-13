@@ -173,9 +173,6 @@ func id(r *http.Request, name string) (int64, error) {
 }
 func version(r *http.Request) (int64, error) {
 	v := r.Header.Get("If-Match")
-	if v == "" && os.Getenv("VERCEL") == "1" {
-		v = r.Header.Get("X-Blog-If-Match")
-	}
 	if v == "" {
 		return 0, domain.Fail(428, "version_required", "Укажите If-Match с ETag статьи")
 	}
