@@ -2,16 +2,16 @@
 
 Проверена финальная версия проекта на Go 1.27.2 и PostgreSQL 18.6.
 
-| Проверка | Результат |
-|---|---|
-| `make check` | PASS: Redocly OpenAPI 3.1, 0 ошибок/предупреждений, 30 операций, сверка маршрутов и генерации; gofmt, go vet, unit/HTTP-тесты с race detector |
-| `make build` | PASS: API, мигратор, maintenance |
-| `go test -race -count=1 -tags=integration ./...` | PASS в Docker с реальным PostgreSQL, HTTP/service/repository сценарии |
-| Dockerfile | PASS: multi-stage production image, непривилегированный пользователь |
-| Compose | PASS: новая БД → healthcheck → миграция → API |
-| `scripts/smoke.py` по настоящему HTTP | PASS: health/ready/docs/контракт, регистрация, приватность, draft/publication, guest cookie и views, likes/comments, статистика, удаление, logout |
-| maintenance два последовательных запуска | PASS: повторное выполнение без ошибки |
-| Проверка исходников | Нет TODO/stub; форматирование исходников/документации согласовано |
+| Проверка                                         | Результат                                                                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make check`                                     | PASS: Redocly OpenAPI 3.1, 0 ошибок/предупреждений, 30 операций, сверка маршрутов и генерации; gofmt, go vet, unit/HTTP-тесты с race detector     |
+| `make build`                                     | PASS: API, мигратор, maintenance                                                                                                                  |
+| `go test -race -count=1 -tags=integration ./...` | PASS в Docker с реальным PostgreSQL, HTTP/service/repository сценарии                                                                             |
+| Dockerfile                                       | PASS: multi-stage production image, непривилегированный пользователь                                                                              |
+| Compose                                          | PASS: новая БД → healthcheck → миграция → API                                                                                                     |
+| `scripts/smoke.py` по настоящему HTTP            | PASS: health/ready/docs/контракт, регистрация, приватность, draft/publication, guest cookie и views, likes/comments, статистика, удаление, logout |
+| maintenance два последовательных запуска         | PASS: повторное выполнение без ошибки                                                                                                             |
+| Проверка исходников                              | Нет TODO/stub; форматирование исходников/документации согласовано                                                                                 |
 
 Интеграционные тесты включают конкурентную постановку/снятие лайков, конкурентную регистрацию просмотров, окно дедупликации и следующий интервал, отсутствие просмотров от GET/автора/admin/черновика, уникальность и FK PostgreSQL, UTC-границы и нулевые дни, публичную/личную статистику и последствия удаления/снятия публикации, два одновременных редактора одной версии, ротацию/replay/logout и конкурентный refresh.
 

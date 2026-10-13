@@ -2,7 +2,7 @@
 
 Развёртывание API в Vercel с PostgreSQL Neon: [docs/vercel.md](docs/vercel.md).
 
-Рабочий модульный монолит на Go: PostgreSQL, chi, pgx, net/http, slog. Контракт — [openapi.yaml](openapi.yaml), Swagger UI — `/docs`. API работает с Markdown; веб-интерфейс блога не входит в проект. Каноническая ссылка ведёт на настроенный публичный сайт, который должен реализовать страницу `/articles/{slug}`.
+Рабочий модульный монолит на Go: PostgreSQL, chi, pgx, net/http, slog. Контракт — [openapi.yaml](openapi.yaml), Swagger UI — `/docs`; описание всех ручек, параметров и тел запросов — [docs/api.md](docs/api.md). API работает с Markdown; веб-интерфейс блога не входит в проект. Каноническая ссылка ведёт на настроенный публичный сайт, который должен реализовать страницу `/articles/{slug}`.
 
 ## Быстрый запуск
 
