@@ -1,6 +1,7 @@
 {
  "name": "blog-api-contract-tools",
  "private": true,
+ "type": "module",
  "scripts": {
   "check:openapi": "redocly lint openapi.yaml && python3 scripts/check_openapi.py"
  },

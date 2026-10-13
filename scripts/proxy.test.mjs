@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import proxy from '../proxy.mjs';
+import proxy from '../proxy.js';
 
 test('passes the original version through the private transport header', () => {
   const response = proxy(new Request('https://example.org/api/v1/articles/1', {

@@ -5,7 +5,7 @@
   "buildCommand": "sh scripts/vercel-build.sh",
   "regions": ["fra1"],
   "proxy": {
-    "entrypoint": "proxy.mjs",
+    "entrypoint": "proxy.js",
     "matcher": ["/api/v1/articles/:path*"]
   },
   "crons": [
