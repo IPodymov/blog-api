@@ -27,7 +27,7 @@ func Load() (Config, error) {
 	if err := LoadLocalEnv(); err != nil {
 		return Config{}, err
 	}
-	c := Config{DatabaseURL: os.Getenv("DATABASE_URL"), Addr: env("HTTP_ADDR", ":8080"), PublicURL: env("PUBLIC_SITE_URL", "http://localhost:3000"), VisitorSecret: os.Getenv("VISITOR_SECRET"), Origins: strings.Split(env("CORS_ORIGINS", "http://localhost:3000"), ","), MaxPeriod: 366}
+	c := Config{DatabaseURL: os.Getenv("DATABASE_URL"), Addr: env("HTTP_ADDR", ":"+env("PORT", "8080")), PublicURL: env("PUBLIC_SITE_URL", "http://localhost:3000"), VisitorSecret: os.Getenv("VISITOR_SECRET"), Origins: strings.Split(env("CORS_ORIGINS", "http://localhost:3000"), ","), MaxPeriod: 366}
 	if c.DatabaseURL == "" || len(c.VisitorSecret) < 32 {
 		return c, fmt.Errorf("DATABASE_URL and VISITOR_SECRET (>=32 bytes) required")
 	}

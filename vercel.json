@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "go",
+  "installCommand": "npm ci --ignore-scripts && go mod download",
+  "buildCommand": "sh scripts/vercel-build.sh",
+  "regions": ["fra1"],
+  "proxy": {
+    "entrypoint": "proxy.mjs",
+    "matcher": ["/api/v1/articles/:path*"]
+  },
+  "crons": [
+    { "path": "/internal/maintenance", "schedule": "0 3 * * *" }
+  ]
+}

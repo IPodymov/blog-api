@@ -3,6 +3,7 @@ package main
 import (
 	"blog-api/internal/config"
 	"blog-api/internal/httpapi"
+	"blog-api/internal/maintenance"
 	"blog-api/internal/repository"
 	"blog-api/internal/service"
 	"context"
@@ -31,7 +32,15 @@ func run(log *slog.Logger) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	pool, e := pgxpool.New(ctx, c.DatabaseURL)
+	poolConfig, e := pgxpool.ParseConfig(c.DatabaseURL)
+	if e != nil {
+		return errors.New("database configuration failed")
+	}
+	// Keep idle connections low when Vercel scales instances horizontally.
+	poolConfig.MaxConns = 5
+	poolConfig.MinConns = 0
+	poolConfig.MaxConnIdleTime = time.Minute
+	pool, e := pgxpool.NewWithConfig(ctx, poolConfig)
 	if e != nil {
 		return errors.New("database configuration failed")
 	}
@@ -40,7 +49,12 @@ func run(log *slog.Logger) error {
 		return errors.New("database connection failed")
 	}
 	s := &service.Service{Repo: &repository.Store{DB: pool}, PublicURL: c.PublicURL, VisitorSecret: c.VisitorSecret, AccessTTL: c.AccessTTL, RefreshTTL: c.RefreshTTL, ViewInterval: c.ViewInterval, MaxPeriod: c.MaxPeriod}
-	server := &http.Server{Addr: c.Addr, Handler: httpapi.New(s, c, log), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	mux := http.NewServeMux()
+	mux.Handle("/internal/maintenance", maintenance.Handler(os.Getenv("CRON_SECRET"), func(ctx context.Context) error {
+		return maintenance.Run(ctx, pool, c.ViewInterval)
+	}, log))
+	mux.Handle("/", httpapi.New(s, c, log))
+	server := &http.Server{Addr: c.Addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	defer server.Close()
 	stop, done := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer done()

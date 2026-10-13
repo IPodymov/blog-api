@@ -6,3 +6,7 @@ bin/
 coverage.out
 .local-proxy/
 node_modules/
+.vercel
+.agents/skills/neon/
+.agents/skills/neon-postgres/
+skills-lock.json

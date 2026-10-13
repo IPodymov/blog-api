@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	specification "blog-api"
 	"blog-api/internal/config"
 	"blog-api/internal/domain"
 	"blog-api/internal/service"
@@ -13,6 +14,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,7 +67,7 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 	})
 	r.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
-		http.ServeFile(w, r, "openapi.yaml")
+		w.Write(specification.OpenAPI)
 	})
 	r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -171,6 +173,9 @@ func id(r *http.Request, name string) (int64, error) {
 }
 func version(r *http.Request) (int64, error) {
 	v := r.Header.Get("If-Match")
+	if v == "" && os.Getenv("VERCEL") == "1" {
+		v = r.Header.Get("X-Blog-If-Match")
+	}
 	if v == "" {
 		return 0, domain.Fail(428, "version_required", "Укажите If-Match с ETag статьи")
 	}
@@ -298,10 +303,7 @@ func (a *API) middleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		host, _, e := net.SplitHostPort(r.RemoteAddr)
-		if e != nil {
-			host = r.RemoteAddr
-		}
+		host := clientIP(r, os.Getenv("VERCEL") == "1")
 		key := service.Hash(host)
 		limit := 300
 		group := "general"
@@ -342,4 +344,18 @@ func (a *API) middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 		a.Log.Info("http request", "request_id", rid, "method", r.Method, "duration_ms", time.Since(start).Milliseconds())
 	})
+}
+
+func clientIP(r *http.Request, onVercel bool) string {
+	// Only trust the platform header when running behind Vercel ingress.
+	if onVercel {
+		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Vercel-Forwarded-For"))); ip != nil {
+			return ip.String()
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }

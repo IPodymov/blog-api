@@ -17,7 +17,11 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	p, e := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	databaseURL := os.Getenv("DATABASE_URL_UNPOOLED")
+	if databaseURL == "" {
+		databaseURL = os.Getenv("DATABASE_URL")
+	}
+	p, e := pgxpool.New(ctx, databaseURL)
 	if e != nil {
 		log.Fatal("database configuration failed")
 	}
