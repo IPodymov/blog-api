@@ -54,8 +54,6 @@ npx vercel@63.1.2 deploy --prod --scope ipodymovs-projects
 ```
 
 После статуса `READY` проверьте `/ready`, Swagger и операции API.
-`python3 scripts/smoke.py https://blog-api-zeta-green.vercel.app` проверяет
-реальные сценарии и создаёт два тестовых аккаунта; тестовую статью удаляет.
 
 Проект подключён к `IPodymov/blog-api`, production-ветка `main`.
 Для Git-автодеплоя нужно опубликовать текущие изменения в репозитории.

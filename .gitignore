@@ -11,6 +11,5 @@ node_modules/
 .agents/skills/neon-postgres/
 skills-lock.json
 .codex/
-.venv/
 .DS_Store
 /server

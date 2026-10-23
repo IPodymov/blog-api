@@ -6,7 +6,7 @@
 
 ## Быстрый запуск
 
-Нужны Docker Engine + Compose. Для локального Go: Go 1.27.2+, для проверки OpenAPI: Node.js 22.12+ и Python 3.
+Нужны Docker Engine + Compose. Для локального Go: Go 1.27.2+, для проверки OpenAPI: Node.js 22.12+.
 
 ```sh
 cp .env.example .env
@@ -35,10 +35,8 @@ make run
 
 ```sh
 npm ci --ignore-scripts
-make check                    # OpenAPI, сверка маршрутов, gofmt, go vet, unit/HTTP + race
+make check                    # OpenAPI, gofmt, go vet, unit/HTTP + race
 make build
-# При запущенном сервере также можно проверить настоящий HTTP:
-python3 scripts/smoke.py http://localhost:8080
 # Отдельная тестовая БД; не production. Тест создаёт случайную schema и удаляет её.
 docker run -d --name blog-api-test-db -e POSTGRES_PASSWORD=blogtest \
   -p 127.0.0.1:55432:5432 postgres:18.6-alpine
@@ -48,7 +46,7 @@ docker rm -f blog-api-test-db
 
 Интеграционный тест запускает настоящие миграции, HTTP-обработчики и SQL-репозитории. Есть проверки приватности, списков профилей, комментариев и ответов, конкурентных лайков/просмотров/редактирования, дедупликации, UTC-дней и нулевых дней, снятия публикации и каскадного удаления, ротации/повторного использования/отзыва токенов и администраторской модерации. Unit-тесты проверяют правила доступа, диапазоны дат, валидацию статей, гостевые подписи и PATCH/ETag.
 
-`api/openapi.yaml` сериализован как JSON — это валидный YAML 1.2 и OpenAPI 3.1. Можно напрямую использовать для генерации клиентов. Источник спецификации: `scripts/generate_openapi.py`; после изменений запускайте `python3 scripts/generate_openapi.py`. Redocly 2.62.1 проверяет спецификацию и примеры, дополнительный скрипт сверяет маршруты и детерминированную генерацию. Node.js нужен только разработчикам для проверки контракта, не приложению. `/docs` загружает фиксированную версию Swagger UI через CDN, поэтому для интерфейса документации нужен интернет; сам контракт доступен локально по `/openapi.yaml`.
+`api/openapi.yaml` сериализован как JSON — это валидный YAML 1.2 и OpenAPI 3.1. Можно напрямую использовать для генерации клиентов. Спецификация редактируется напрямую в `api/openapi.yaml`. Redocly 2.62.1 проверяет спецификацию и примеры, а Go-тест `internal/httpapi/contract_test.go` сверяет маршруты роутера с операциями контракта, `operationId`, теги и path-параметры. Node.js нужен только разработчикам для проверки контракта, не приложению. `/docs` загружает фиксированную версию Swagger UI через CDN, поэтому для интерфейса документации нужен интернет; сам контракт доступен локально по `/openapi.yaml`.
 
 ## Архитектура
 
@@ -65,7 +63,7 @@ internal/service/    бизнес-правила, права, bcrypt, токен
 internal/repository/ параметризованный SQL, транзакции и конкурентность
 internal/httpapi/    chi, обработчики, decode, CORS, rate limit, HTTP errors
 migrations/          встроенные SQL-миграции
-scripts/             генерация и проверка OpenAPI, Vercel build, smoke-тест
+scripts/             сборка для Vercel
 docs/                API, архитектура, Vercel, отчёт о проверке
 .github/workflows/   CI: lint, unit, интеграционные тесты, контракт, Docker
 ```
