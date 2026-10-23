@@ -13,7 +13,7 @@ integration:
 openapi:
 	npm run check:openapi
 check: openapi
-	@test -z "$$(gofmt -l cmd internal migrations)" || (gofmt -l cmd internal migrations; exit 1)
+	@test -z "$$(gofmt -l api cmd internal migrations)" || (gofmt -l api cmd internal migrations; exit 1)
 	go vet ./...
 	go test -race ./...
 build:

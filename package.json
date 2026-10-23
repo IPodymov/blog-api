@@ -2,7 +2,7 @@
  "name": "blog-api-contract-tools",
  "private": true,
  "scripts": {
-  "check:openapi": "redocly lint openapi.yaml && python3 scripts/check_openapi.py"
+  "check:openapi": "redocly lint api/openapi.yaml && python3 scripts/check_openapi.py"
  },
  "devDependencies": {
   "@redocly/cli": "2.62.1"

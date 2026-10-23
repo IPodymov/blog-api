@@ -1,4 +1,4 @@
-package specification
+package api
 
 import _ "embed"
 

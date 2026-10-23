@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	specification "blog-api"
+	"blog-api/api"
 	"blog-api/internal/config"
 	"blog-api/internal/domain"
 	"blog-api/internal/service"
@@ -67,7 +67,7 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 	})
 	r.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
-		w.Write(specification.OpenAPI)
+		w.Write(api.OpenAPI)
 	})
 	r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -263,7 +263,7 @@ for path, methods in paths.items():
     for o in methods.values():
         o['responses'].setdefault('405', {'$ref': '#/components/responses/E405'})
         o['responses'].setdefault('401', {'$ref': '#/components/responses/E401'})
-Path('openapi.yaml').write_text(json.dumps(root, ensure_ascii=False, indent=2) + '\n')
+Path('api/openapi.yaml').write_text(json.dumps(root, ensure_ascii=False, indent=2) + '\n')
 
 
 # Complete operation examples, validated by the standard OpenAPI linter.
@@ -295,4 +295,4 @@ for p, methods in paths.items():
             if '$ref' in response: continue
             for media in response.get('content', {}).values():
                 if media.get('schema', {}).get('$ref'): media['example'] = sample(media['schema'])
-Path('openapi.yaml').write_text(json.dumps(root, ensure_ascii=False, indent=2) + '\n')
+Path('api/openapi.yaml').write_text(json.dumps(root, ensure_ascii=False, indent=2) + '\n')

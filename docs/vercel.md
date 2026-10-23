@@ -63,6 +63,15 @@ npx vercel@63.1.2 deploy --prod --scope ipodymovs-projects
 миграции: используйте совместимые добавочные изменения схемы. Откат Vercel
 не откатывает PostgreSQL.
 
+## CI/CD
+
+- CI: `.github/workflows/ci.yml` на каждый push в `main` и pull request запускает
+  gofmt, `go mod tidy -diff`, `go vet` (включая тег `integration`), unit-тесты с race,
+  интеграционные тесты на PostgreSQL 18, проверку OpenAPI (Redocly + сверка маршрутов)
+  и сборку Docker-образа.
+- CD: Vercel Git-интеграция деплоит `main` в Production, остальные ветки — в Preview.
+  Сборка Vercel выполняется с `-buildvcs=false`: `.git` не попадает в окружение сборки.
+
 ## Эксплуатация
 
 Логи доступны в Vercel Observability. `/ready` проверяет доступность БД.

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-spec = json.loads(Path('openapi.yaml').read_text())
+spec = json.loads(Path('api/openapi.yaml').read_text())
 assert spec['openapi'] == '3.1.0'
 ids = []
 for path, methods in spec['paths'].items():
@@ -34,7 +34,7 @@ routes = {(method.lower(), path if path in ['/health', '/ready', '/docs', '/open
           method, path in re.findall(r'\br\.(Get|Post|Patch|Put|Delete)\("([^"]+)"', source)}
 documented = {(method, path) for path, ops in spec['paths'].items() for method in ops}
 assert routes == documented, f'Route mismatch: {routes ^ documented}'
-before = Path('openapi.yaml').read_bytes()
+before = Path('api/openapi.yaml').read_bytes()
 subprocess.run([sys.executable, 'scripts/generate_openapi.py'], check=True)
-assert Path('openapi.yaml').read_bytes() == before, 'generated specification is stale'
+assert Path('api/openapi.yaml').read_bytes() == before, 'generated specification is stale'
 print(f'Contract checked: {len(ids)} operations, local refs resolved, routes match, generation deterministic.')
