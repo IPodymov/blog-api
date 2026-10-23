@@ -129,6 +129,7 @@ Cookie `blog_visitor` создаётся сервером; вручную зад
 | `GET /api/v1/tags` | Анонимно | `page`, `page_size`; теги опубликованных статей. |
 | `GET /health` | Анонимно | Проверка процесса API. |
 | `GET /ready` | Анонимно | Проверка доступности PostgreSQL; `503`, если БД недоступна. |
+| `GET /` | Анонимно | `302` на `/docs`: корень домена открывает Swagger UI. |
 | `GET /docs` | Анонимно | Swagger UI. |
 | `GET /openapi.yaml` | Анонимно | Полный контракт OpenAPI. |
 

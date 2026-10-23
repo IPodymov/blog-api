@@ -69,6 +69,9 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 		w.Header().Set("Content-Type", "application/yaml")
 		w.Write(api.OpenAPI)
 	})
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/docs", http.StatusFound)
+	})
 	r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		io.WriteString(w, `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Blog API</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.29.5/swagger-ui.css"></head><body><div id="swagger"></div><script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.29.5/swagger-ui-bundle.js"></script><script>SwaggerUIBundle({url:'/openapi.yaml',dom_id:'#swagger',persistAuthorization:false})</script></body></html>`)

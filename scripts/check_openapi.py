@@ -30,7 +30,7 @@ def walk(v):
 
 walk(spec)
 source = Path('internal/httpapi/api.go').read_text()
-routes = {(method.lower(), path if path in ['/health', '/ready', '/docs', '/openapi.yaml'] else '/api/v1' + path) for
+routes = {(method.lower(), path if path in ['/', '/health', '/ready', '/docs', '/openapi.yaml'] else '/api/v1' + path) for
           method, path in re.findall(r'\br\.(Get|Post|Patch|Put|Delete)\("([^"]+)"', source)}
 documented = {(method, path) for path, ops in spec['paths'].items() for method in ops}
 assert routes == documented, f'Route mismatch: {routes ^ documented}'

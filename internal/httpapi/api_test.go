@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -77,5 +78,14 @@ func TestMiddlewareBoundaries(t *testing.T) {
 		if w.Header().Get("X-Request-ID") == "" {
 			t.Error("request ID missing")
 		}
+	}
+}
+
+func TestRootRedirectsToDocs(t *testing.T) {
+	h := New(&service.Service{}, config.Config{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/docs" {
+		t.Fatalf("got %d, Location %q", w.Code, w.Header().Get("Location"))
 	}
 }

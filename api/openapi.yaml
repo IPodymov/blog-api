@@ -2344,6 +2344,54 @@
           }
         }
       }
+    },
+    "/": {
+      "get": {
+        "operationId": "getRoot",
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Перенаправление на Swagger UI",
+        "description": "Корень домена перенаправляет на интерактивную документацию /docs.",
+        "parameters": [],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Перенаправление на /docs.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "const": "/docs"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          }
+        }
+      }
     }
   },
   "components": {

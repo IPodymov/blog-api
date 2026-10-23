@@ -161,7 +161,7 @@ paths = {}
 
 def op(path, method, oid, tag, summary, response=None, body=None, secure=False, parameters=None, status=200, desc='',
        errors=None):
-    p = '/api/v1' + path if not path.startswith(('/health', '/ready', '/docs', '/openapi')) else path
+    p = '/api/v1' + path if path != '/' and not path.startswith(('/health', '/ready', '/docs', '/openapi')) else path
     ps = list(parameters or [])
     import re
     for name in re.findall(r'{([^}]+)}', path): ps.insert(0,
@@ -250,6 +250,10 @@ op('/ready', 'get', 'ready', 'Operations', 'Проверка PostgreSQL', 'Healt
 for path, oid, media in [('/docs', 'getDocs', 'text/html'), ('/openapi.yaml', 'getOpenAPI', 'application/yaml')]:
     o = op(path, 'get', oid, 'Operations', 'Документация API');
     o['responses']['200']['content'] = {media: {'schema': string()}}
+o = op('/', 'get', 'getRoot', 'Operations', 'Перенаправление на Swagger UI', status=302,
+       desc='Корень домена перенаправляет на интерактивную документацию /docs.')
+o['responses']['302'] = {'description': 'Перенаправление на /docs.',
+                         'headers': {'Location': {'schema': {'type': 'string', 'const': '/docs'}}}}
 root = {'openapi': '3.1.0', 'jsonSchemaDialect': 'https://json-schema.org/draft/2020-12/schema',
         'info': {'title': 'Multi-user Blog API', 'version': '1.0.0',
                  'description': 'Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. На любом маршруте может быть 401, если передан невалидный Authorization.'},
