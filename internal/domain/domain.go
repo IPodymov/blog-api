@@ -17,9 +17,18 @@ func Invalid(field, msg string) error {
 	return &Error{422, "validation_failed", "Некорректные данные", map[string]string{field: msg}}
 }
 
+// Site is the tenant every request is bound to; data of different sites never mixes.
+type Site struct {
+	ID        int64
+	Key       string
+	PublicURL string
+}
+
+// Actor is the caller on a concrete site; ID is 0 for anonymous requests.
 type Actor struct {
 	ID   int64
 	Role string
+	Site Site
 }
 
 func (a Actor) CanManage(owner int64) bool { return a.ID != 0 && (a.ID == owner || a.Role == "admin") }

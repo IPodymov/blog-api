@@ -61,9 +61,16 @@ func TestEndToEnd(t *testing.T) {
 	s := &service.Service{Repo: repo, PublicURL: "https://blog.example", VisitorSecret: strings.Repeat("s", 32), AccessTTL: 15 * time.Minute, RefreshTTL: 24 * time.Hour, ViewInterval: 30 * time.Minute, MaxPeriod: 366}
 	c := config.Config{Origins: []string{"https://blog.example"}, SecureCookie: true}
 	h := New(s, c, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	call := func(method, path, body, token, etag string) *httptest.ResponseRecorder {
+	site, e := s.Site(ctx, "default")
+	if e != nil {
+		t.Fatal(e)
+	}
+	callSite := func(siteKey, method, path, body, token, etag string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, "/api/v1"+path, strings.NewReader(body))
 		r.RemoteAddr = "127.0.0.1:1234"
+		if siteKey != "" {
+			r.Header.Set("X-Site-Key", siteKey)
+		}
 		if body != "" {
 			r.Header.Set("Content-Type", "application/json")
 		}
@@ -76,6 +83,9 @@ func TestEndToEnd(t *testing.T) {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		return w
+	}
+	call := func(method, path, body, token, etag string) *httptest.ResponseRecorder {
+		return callSite("default", method, path, body, token, etag)
 	}
 	expect := func(w *httptest.ResponseRecorder, status int) {
 		t.Helper()
@@ -94,11 +104,11 @@ func TestEndToEnd(t *testing.T) {
 	}
 	owner := register("owner")
 	other := register("other")
-	oa, e := s.Authenticate(ctx, owner.Access)
+	oa, e := s.Authenticate(ctx, site, owner.Access)
 	if e != nil {
 		t.Fatal(e)
 	}
-	ba, e := s.Authenticate(ctx, other.Access)
+	ba, e := s.Authenticate(ctx, site, other.Access)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -221,6 +231,7 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatal("guest cookie unsafe")
 	}
 	r := httptest.NewRequest("POST", "/api/v1"+path+"/views", nil)
+	r.Header.Set("X-Site-Key", "default")
 	r.AddCookie(cookies[0])
 	r.RemoteAddr = "127.0.0.1:1234"
 	wr = httptest.NewRecorder()
@@ -280,7 +291,7 @@ func TestEndToEnd(t *testing.T) {
 	w = call("PATCH", path, `{"status":"draft"}`, owner.Access, etag)
 	expect(w, 200)
 	etag = w.Header().Get("ETag")
-	prof, e := s.PublicProfile(ctx, oa.ID)
+	prof, e := s.PublicProfile(ctx, site, oa.ID)
 	if e != nil || prof.Statistics.Published != 0 || prof.Statistics.Views != 0 {
 		t.Fatal("unpublished public statistics wrong")
 	}
@@ -334,7 +345,7 @@ func TestEndToEnd(t *testing.T) {
 	if _, e = pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id=$1", ba.ID); e != nil {
 		t.Fatal(e)
 	}
-	admin, e := s.Authenticate(ctx, other.Access)
+	admin, e := s.Authenticate(ctx, site, other.Access)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -355,6 +366,65 @@ func TestEndToEnd(t *testing.T) {
 	}
 	if e = s.DeleteArticle(ctx, admin, fresh.ID, updated.Version); e != nil {
 		t.Fatal("admin deletion forbidden", e)
+	}
+	// Site isolation: another site sees none of the users, articles, comments, likes, tags or tokens.
+	expect(callSite("", "GET", "/articles", "", "", ""), 400)
+	expect(callSite("missing", "GET", "/articles", "", "", ""), 400)
+	if _, e = pool.Exec(ctx, "INSERT INTO sites(key,public_url) VALUES('second','https://second.example')"); e != nil {
+		t.Fatal(e)
+	}
+	second := func(method, path, body, token string) *httptest.ResponseRecorder {
+		return callSite("second", method, path, body, token, "")
+	}
+	shared, e := s.CreateArticle(ctx, oa, domain.ArticleInput{Title: "Shared", Slug: "shared", Content: "Content", Tags: []string{"go"}, Status: "published"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	sharedPath := fmt.Sprintf("/articles/%d", shared.ID)
+	w = call("POST", sharedPath+"/comments", `{"content":"Root"}`, other.Access, "")
+	expect(w, 201)
+	json.Unmarshal(w.Body.Bytes(), &comment)
+	expect(second("GET", "/me", "", owner.Access), 401)
+	expect(second("POST", "/auth/refresh", fmt.Sprintf(`{"refresh_token":%q}`, owner.Refresh), ""), 401)
+	expect(call("GET", "/me", "", owner.Access, ""), 200)
+	expect(second("POST", "/auth/login", `{"email":"other@example.org","password":"test-password-2026"}`, ""), 401)
+	expect(second("GET", fmt.Sprintf("/users/%d", oa.ID), "", ""), 404)
+	expect(second("GET", sharedPath, "", ""), 404)
+	expect(second("GET", "/articles-by-slug/shared", "", ""), 404)
+	expect(second("GET", sharedPath+"/comments", "", ""), 404)
+	expect(second("POST", sharedPath+"/views", "", ""), 404)
+	for _, list := range []string{"/articles", "/tags"} {
+		w = second("GET", list, "", "")
+		expect(w, 200)
+		if !strings.Contains(w.Body.String(), `"total":0`) {
+			t.Fatal("foreign site data listed", list, w.Body.String())
+		}
+	}
+	if w = call("GET", "/tags", "", "", ""); !strings.Contains(w.Body.String(), `"go"`) {
+		t.Fatal("own site tags missing", w.Body.String())
+	}
+	// The same username and email form an independent account on the second site.
+	w = second("POST", "/auth/register", `{"username":"owner","email":"owner@example.org","password":"test-password-2026"}`, "")
+	expect(w, 201)
+	var foreign domain.Tokens
+	json.Unmarshal(w.Body.Bytes(), &foreign)
+	expect(second("GET", "/me", "", foreign.Access), 200)
+	expect(call("GET", "/me", "", foreign.Access, ""), 401)
+	expect(second("POST", sharedPath+"/comments", `{"content":"Intruder"}`, foreign.Access), 404)
+	expect(second("PUT", sharedPath+"/like", "", foreign.Access), 404)
+	expect(second("PATCH", fmt.Sprintf("/comments/%d", comment.ID), `{"content":"Intruder"}`, foreign.Access), 404)
+	expect(second("DELETE", fmt.Sprintf("/comments/%d", comment.ID), "", foreign.Access), 404)
+	w = second("POST", "/articles", `{"title":"Second","slug":"shared","content":"Body","status":"published"}`, foreign.Access)
+	expect(w, 201)
+	json.Unmarshal(w.Body.Bytes(), &article)
+	if article.CanonicalURL == nil || *article.CanonicalURL != "https://second.example/articles/shared" {
+		t.Fatal("site canonical URL wrong", article.CanonicalURL)
+	}
+	w = call("GET", "/articles-by-slug/shared", "", "", "")
+	expect(w, 200)
+	json.Unmarshal(w.Body.Bytes(), &article)
+	if article.ID != shared.ID || *article.CanonicalURL != "https://blog.example/articles/shared" {
+		t.Fatal("slug resolved across sites")
 	}
 	// Rotation, replay detection and logout invalidate access credentials immediately.
 	w = call("POST", "/auth/refresh", fmt.Sprintf(`{"refresh_token":%q}`, other.Refresh), "", "")

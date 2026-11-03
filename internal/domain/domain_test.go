@@ -11,7 +11,7 @@ func TestAccessRules(t *testing.T) {
 		owner        int64
 		status       string
 		read, manage bool
-	}{{Actor{}, 1, "published", true, false}, {Actor{}, 1, "draft", false, false}, {Actor{1, "user"}, 1, "draft", true, true}, {Actor{2, "user"}, 1, "draft", false, false}, {Actor{2, "admin"}, 1, "draft", true, true}} {
+	}{{Actor{}, 1, "published", true, false}, {Actor{}, 1, "draft", false, false}, {Actor{ID: 1, Role: "user"}, 1, "draft", true, true}, {Actor{ID: 2, Role: "user"}, 1, "draft", false, false}, {Actor{ID: 2, Role: "admin"}, 1, "draft", true, true}} {
 		if got := tc.a.CanRead(tc.owner, tc.status); got != tc.read {
 			t.Errorf("read: %+v: %v", tc, got)
 		}

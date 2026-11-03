@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func (s *Store) View(ctx context.Context, id, user int64, admin bool, visitor string, interval time.Duration) (bool, error) {
+func (s *Store) View(ctx context.Context, site, id, user int64, admin bool, visitor string, interval time.Duration) (bool, error) {
 	counted := false
-	e := s.PublishedTx(ctx, id, func(tx pgx.Tx, author int64) error {
+	e := s.PublishedTx(ctx, site, id, func(tx pgx.Tx, author int64) error {
 		if user == author || admin {
 			return nil
 		}

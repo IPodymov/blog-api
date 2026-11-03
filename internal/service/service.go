@@ -100,14 +100,35 @@ func ValidateArticle(in domain.ArticleInput) error {
 	}
 	return nil
 }
-func (s *Service) Canonical(a domain.Article) domain.Article {
+
+// Site resolves the X-Site-Key value; a site without its own public_url uses PUBLIC_SITE_URL.
+func (s *Service) Site(ctx context.Context, key string) (domain.Site, error) {
+	if key == "" {
+		return domain.Site{}, domain.Fail(400, "site_required", "Укажите заголовок X-Site-Key")
+	}
+	if len(key) > 64 || !slugRE.MatchString(key) {
+		return domain.Site{}, domain.Fail(400, "unknown_site", "Неизвестный сайт")
+	}
+	v, e := s.Repo.Site(ctx, key)
+	if e != nil {
+		if de, ok := e.(*domain.Error); ok && de.Status == 404 {
+			return v, domain.Fail(400, "unknown_site", "Неизвестный сайт")
+		}
+		return v, e
+	}
+	if v.PublicURL == "" {
+		v.PublicURL = s.PublicURL
+	}
+	return v, nil
+}
+func Canonical(site domain.Site, a domain.Article) domain.Article {
 	if a.Status == "published" {
-		u := strings.TrimRight(s.PublicURL, "/") + "/articles/" + a.Slug
+		u := strings.TrimRight(site.PublicURL, "/") + "/articles/" + a.Slug
 		a.CanonicalURL = &u
 	}
 	return a
 }
-func (s *Service) Register(ctx context.Context, username, email, password string) (domain.Tokens, error) {
+func (s *Service) Register(ctx context.Context, site domain.Site, username, email, password string) (domain.Tokens, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !usernameRE.MatchString(username) {
 		return domain.Tokens{}, domain.Invalid("username", "Формат [a-z0-9_], 3..32")
@@ -125,13 +146,13 @@ func (s *Service) Register(ctx context.Context, username, email, password string
 	}
 	tokens := s.tokenPair()
 	now := time.Now()
-	e = s.Repo.Register(ctx, username, email, string(hash), Random(), Hash(tokens.Access), Hash(tokens.Refresh), now.Add(s.AccessTTL), now.Add(s.RefreshTTL))
+	e = s.Repo.Register(ctx, site.ID, username, email, string(hash), Random(), Hash(tokens.Access), Hash(tokens.Refresh), now.Add(s.AccessTTL), now.Add(s.RefreshTTL))
 	return tokens, e
 }
 
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("constant-dummy-password"), 12)
 
-func (s *Service) Login(ctx context.Context, email, password string) (domain.Tokens, error) {
+func (s *Service) Login(ctx context.Context, site domain.Site, email, password string) (domain.Tokens, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	address, parseErr := mail.ParseAddress(email)
 	if parseErr != nil || address.Address != email || len(email) > 254 {
@@ -141,7 +162,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (domain.Tok
 		return domain.Tokens{}, domain.Invalid("password", "1..72 байта")
 	}
 
-	id, hash, e := s.Repo.Credentials(ctx, strings.ToLower(strings.TrimSpace(email)))
+	id, hash, e := s.Repo.Credentials(ctx, site.ID, email)
 	if e != nil {
 		if de, ok := e.(*domain.Error); !ok || de.Status != 404 {
 			return domain.Tokens{}, e
@@ -162,23 +183,27 @@ func (s *Service) newTokens(ctx context.Context, id int64) (domain.Tokens, error
 	e := s.Repo.NewSession(ctx, id, Random(), Hash(t.Access), Hash(t.Refresh), now.Add(s.AccessTTL), now.Add(s.RefreshTTL))
 	return t, e
 }
-func (s *Service) Refresh(ctx context.Context, old string) (domain.Tokens, error) {
+func (s *Service) Refresh(ctx context.Context, site domain.Site, old string) (domain.Tokens, error) {
 	if len(old) != 43 {
 		return domain.Tokens{}, domain.Fail(401, "invalid_token", "Refresh-токен недействителен")
 	}
 	t := s.tokenPair()
-	e := s.Repo.Rotate(ctx, Hash(old), Hash(t.Access), Hash(t.Refresh), time.Now().Add(s.AccessTTL))
+	e := s.Repo.Rotate(ctx, site.ID, Hash(old), Hash(t.Access), Hash(t.Refresh), time.Now().Add(s.AccessTTL))
 	return t, e
 }
-func (s *Service) Logout(ctx context.Context, old string) error { return s.Repo.Logout(ctx, Hash(old)) }
-func (s *Service) Authenticate(ctx context.Context, token string) (domain.Actor, error) {
+func (s *Service) Logout(ctx context.Context, site domain.Site, old string) error {
+	return s.Repo.Logout(ctx, site.ID, Hash(old))
+}
+
+// Authenticate accepts only tokens issued to users of the given site.
+func (s *Service) Authenticate(ctx context.Context, site domain.Site, token string) (domain.Actor, error) {
 	if len(token) != 43 {
 		return domain.Actor{}, domain.Fail(401, "invalid_token", "Access-токен недействителен")
 	}
-	return s.Repo.Authenticate(ctx, Hash(token))
+	return s.Repo.Authenticate(ctx, site, Hash(token))
 }
-func (s *Service) PublicProfile(ctx context.Context, id int64) (domain.Profile, error) {
-	u, e := s.Repo.User(ctx, id)
+func (s *Service) PublicProfile(ctx context.Context, site domain.Site, id int64) (domain.Profile, error) {
+	u, e := s.Repo.User(ctx, site.ID, id)
 	if e != nil {
 		return domain.Profile{}, e
 	}
@@ -189,7 +214,7 @@ func (s *Service) Me(ctx context.Context, a domain.Actor) (domain.OwnUser, error
 	if e := require(a); e != nil {
 		return domain.OwnUser{}, e
 	}
-	return s.Repo.User(ctx, a.ID)
+	return s.Repo.User(ctx, a.Site.ID, a.ID)
 }
 func (s *Service) UpdateProfile(ctx context.Context, a domain.Actor, p domain.ProfilePatch) (domain.OwnUser, error) {
 	if e := require(a); e != nil {
@@ -211,21 +236,21 @@ func (s *Service) UpdateProfile(ctx context.Context, a domain.Actor, p domain.Pr
 			return domain.OwnUser{}, domain.Invalid("avatar_url", "Ожидается HTTPS URL либо пустая строка")
 		}
 	}
-	return s.Repo.UpdateUser(ctx, a.ID, p)
+	return s.Repo.UpdateUser(ctx, a.Site.ID, a.ID, p)
 }
 func (s *Service) Article(ctx context.Context, a domain.Actor, id int64) (domain.Article, error) {
-	v, e := s.Repo.Article(ctx, id, a.ID)
+	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
 	if e != nil {
 		return v, e
 	}
 	if !a.CanRead(v.Author.ID, v.Status) {
 		return domain.Article{}, domain.Fail(404, "not_found", "Статья не найдена")
 	}
-	return s.Canonical(v), nil
+	return Canonical(a.Site, v), nil
 }
 func (s *Service) Slug(ctx context.Context, a domain.Actor, slug string) (domain.Article, error) {
-	v, e := s.Repo.BySlug(ctx, slug, a.ID)
-	return s.Canonical(v), e
+	v, e := s.Repo.BySlug(ctx, a.Site.ID, slug, a.ID)
+	return Canonical(a.Site, v), e
 }
 func (s *Service) Articles(ctx context.Context, a domain.Actor, f domain.Filter) (domain.Page[domain.Article], error) {
 	if f.Own {
@@ -234,9 +259,9 @@ func (s *Service) Articles(ctx context.Context, a domain.Actor, f domain.Filter)
 		}
 		f.Author = a.ID
 	}
-	p, e := s.Repo.Articles(ctx, a.ID, f)
+	p, e := s.Repo.Articles(ctx, a.Site.ID, a.ID, f)
 	for i := range p.Items {
-		p.Items[i] = s.Canonical(p.Items[i])
+		p.Items[i] = Canonical(a.Site, p.Items[i])
 	}
 	return p, e
 }
@@ -253,11 +278,11 @@ func (s *Service) CreateArticle(ctx context.Context, a domain.Actor, in domain.A
 	if e := ValidateArticle(in); e != nil {
 		return domain.Article{}, e
 	}
-	v, e := s.Repo.CreateArticle(ctx, a.ID, in)
-	return s.Canonical(v), e
+	v, e := s.Repo.CreateArticle(ctx, a.Site.ID, a.ID, in)
+	return Canonical(a.Site, v), e
 }
 func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version int64, p domain.ArticlePatch) (domain.Article, error) {
-	v, e := s.Repo.Article(ctx, id, a.ID)
+	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
 	if e != nil {
 		return v, e
 	}
@@ -289,27 +314,27 @@ func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version
 	if e := ValidateArticle(in); e != nil {
 		return domain.Article{}, e
 	}
-	v, e = s.Repo.UpdateArticle(ctx, id, version, a.ID, in)
-	return s.Canonical(v), e
+	v, e = s.Repo.UpdateArticle(ctx, a.Site.ID, id, version, a.ID, in)
+	return Canonical(a.Site, v), e
 }
 func (s *Service) DeleteArticle(ctx context.Context, a domain.Actor, id, version int64) error {
-	v, e := s.Repo.Article(ctx, id, a.ID)
+	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
 	if e != nil {
 		return e
 	}
 	if e := manage(a, v.Author.ID); e != nil {
 		return e
 	}
-	return s.Repo.DeleteArticle(ctx, id, version)
+	return s.Repo.DeleteArticle(ctx, a.Site.ID, id, version)
 }
 func (s *Service) View(ctx context.Context, a domain.Actor, id int64, visitor string) (bool, error) {
-	return s.Repo.View(ctx, id, a.ID, a.Role == "admin", s.VisitorHash(visitor), s.ViewInterval)
+	return s.Repo.View(ctx, a.Site.ID, id, a.ID, a.Role == "admin", s.VisitorHash(visitor), s.ViewInterval)
 }
 func (s *Service) Like(ctx context.Context, a domain.Actor, id int64, on bool) (int64, bool, error) {
 	if e := require(a); e != nil {
 		return 0, false, e
 	}
-	return s.Repo.Like(ctx, id, a.ID, on)
+	return s.Repo.Like(ctx, a.Site.ID, id, a.ID, on)
 }
 func (s *Service) Comments(ctx context.Context, a domain.Actor, id int64, f domain.Filter) (domain.Page[domain.Comment], error) {
 	if _, e := s.Article(ctx, a, id); e != nil {
@@ -324,10 +349,10 @@ func (s *Service) CreateComment(ctx context.Context, a domain.Actor, id int64, i
 	if e := text("content", in.Content, 1, 5000); e != nil {
 		return domain.Comment{}, e
 	}
-	return s.Repo.CreateComment(ctx, id, a.ID, in)
+	return s.Repo.CreateComment(ctx, a.Site.ID, id, a.ID, in)
 }
 func (s *Service) UpdateComment(ctx context.Context, a domain.Actor, id int64, content string) (domain.Comment, error) {
-	c, e := s.Repo.Comment(ctx, id)
+	c, e := s.Repo.Comment(ctx, a.Site.ID, id)
 	if e != nil {
 		return c, e
 	}
@@ -337,17 +362,17 @@ func (s *Service) UpdateComment(ctx context.Context, a domain.Actor, id int64, c
 	if e := text("content", content, 1, 5000); e != nil {
 		return domain.Comment{}, e
 	}
-	return s.Repo.UpdateComment(ctx, id, content)
+	return s.Repo.UpdateComment(ctx, a.Site.ID, id, content)
 }
 func (s *Service) DeleteComment(ctx context.Context, a domain.Actor, id int64) error {
-	c, e := s.Repo.Comment(ctx, id)
+	c, e := s.Repo.Comment(ctx, a.Site.ID, id)
 	if e != nil {
 		return e
 	}
 	if e := manage(a, c.Author.ID); e != nil {
 		return e
 	}
-	return s.Repo.DeleteComment(ctx, id)
+	return s.Repo.DeleteComment(ctx, a.Site.ID, id)
 }
 func (s *Service) Period(from, to string) (domain.Period, error) {
 	return domain.ParsePeriod(from, to, time.Now(), s.MaxPeriod)
@@ -373,12 +398,12 @@ func (s *Service) StatisticsArticles(ctx context.Context, a domain.Actor, f doma
 	}
 	v, e := s.Repo.ArticleStats(ctx, a.ID, a.ID, f, p)
 	for i := range v.Items {
-		v.Items[i].Article = s.Canonical(v.Items[i].Article)
+		v.Items[i].Article = Canonical(a.Site, v.Items[i].Article)
 	}
 	return v, e
 }
 func (s *Service) ArticleStatistics(ctx context.Context, a domain.Actor, id int64, p domain.Period) (domain.ArticleStatistics, error) {
-	v, e := s.Repo.Article(ctx, id, a.ID)
+	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
 	if e != nil {
 		return domain.ArticleStatistics{}, e
 	}

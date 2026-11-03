@@ -29,8 +29,8 @@
 | `VISITOR_SECRET`        | Стабильный случайный секрет гостевых cookie                  |
 | `CRON_SECRET`           | Отдельный случайный секрет Vercel Cron                       |
 | `COOKIE_SECURE`         | `true`                                                       |
-| `PUBLIC_SITE_URL`       | HTTPS-адрес сайта, пока сайта нет — адрес API                |
-| `CORS_ORIGINS`          | Разрешённые origins через запятую, без пути/завершающего `/` |
+| `PUBLIC_SITE_URL`       | Адрес для сайтов с пустым `public_url`; пока сайта нет — API |
+| `CORS_ORIGINS`          | Origins всех сайтов через запятую, без пути/завершающего `/` |
 | `ACCESS_TTL`            | `15m`                                                        |
 | `REFRESH_TTL`           | `720h`                                                       |
 | `VIEW_INTERVAL`         | `30m`                                                        |
@@ -84,8 +84,8 @@ Go-пул ограничен пятью соединениями на экзем
 при `VERCEL=1`; локальный сервер игнорирует такие заголовки.
 
 Для гостевых cookie размещайте сайт и API на одном site или за same-origin proxy:
-cookie имеет `SameSite=Lax`. После появления сайта обновите `PUBLIC_SITE_URL`
-и `CORS_ORIGINS` и выполните новый деплой. API не реализует HTML-страницы статей.
+cookie имеет `SameSite=Lax`. При добавлении сайта создайте запись в `sites`,
+обновите `CORS_ORIGINS` и выполните новый деплой ([docs/sites.md](sites.md)). API не реализует HTML-страницы статей.
 
 Официальная документация: [Go runtime](https://vercel.com/docs/functions/runtimes/go),
 [Cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs),

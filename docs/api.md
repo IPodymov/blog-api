@@ -7,11 +7,16 @@
 
 ## Общие правила
 
+- Каждый запрос к `/api/v1` должен содержать заголовок `X-Site-Key` с ключом
+  сайта. Без него ответ `400 site_required`, с неизвестным ключом —
+  `400 unknown_site`. Пользователи, статьи, комментарии, лайки, теги,
+  статистика и токены изолированы по сайтам: чужой ID даёт `404`, токен другого
+  сайта — `401`. Подробности: [несколько сайтов](sites.md).
 - JSON-запросы отправляйте с `Content-Type: application/json`.
 - Для закрытых операций передавайте `Authorization: Bearer <access_token>`.
   Access-токен получается при регистрации или входе. Refresh-токен передаётся
   только в теле запросов refresh/logout.
-- Если у необязательного bearer-маршрута передан неверный `Authorization`,
+- Если у необязательного bearer-маршрута `/api/v1` передан неверный `Authorization`,
   запрос всё равно завершится `401`; для анонимного вызова не отправляйте этот
   заголовок.
 - `user_id`, `article_id` и `comment_id` — положительные `int64`.
@@ -29,7 +34,7 @@
 
 | Метод и путь | Доступ | Параметры и тело |
 | --- | --- | --- |
-| `POST /api/v1/auth/register` | Анонимно | JSON: `username` (3–32 символа, `a-z`, `0-9`, `_`), `email` (до 254 символов), `password` (12–72 байта UTF-8). Роль нового пользователя — `user`. |
+| `POST /api/v1/auth/register` | Анонимно | JSON: `username` (3–32 символа, `a-z`, `0-9`, `_`; уникален в пределах сайта), `email` (до 254 символов; уникален в пределах сайта), `password` (12–72 байта UTF-8). Роль нового пользователя — `user`. |
 | `POST /api/v1/auth/login` | Анонимно | JSON: `email`, `password`. |
 | `POST /api/v1/auth/refresh` | Анонимно | JSON: `refresh_token` (непрозрачная строка длиной 43 символа). Успешный вызов ротирует токен; старый повторно использовать нельзя. |
 | `POST /api/v1/auth/logout` | Анонимно | JSON: `refresh_token`. Отзывает семейство токенов; успешный ответ `204` без тела. |
@@ -72,7 +77,7 @@ refresh-запросы.
 | Поле | Тип и ограничения |
 | --- | --- |
 | `title` | Обязательная строка, 1–200 символов. |
-| `slug` | Обязательная строка, 1–200 символов; строчные латинские буквы и цифры, сегменты разделены одиночным `-`. |
+| `slug` | Обязательная строка, 1–200 символов, уникальна в пределах сайта; строчные латинские буквы и цифры, сегменты разделены одиночным `-`. |
 | `content` | Обязательная Markdown-строка, 1–100000 символов. |
 | `description` | Необязательная строка, до 500 символов. |
 | `tags` | Необязательный массив до 10 тегов; каждый до 40 символов, формат slug. |
@@ -126,7 +131,7 @@ Cookie `blog_visitor` создаётся сервером; вручную зад
 
 | Метод и путь | Доступ | Параметры и тело |
 | --- | --- | --- |
-| `GET /api/v1/tags` | Анонимно | `page`, `page_size`; теги опубликованных статей. |
+| `GET /api/v1/tags` | Анонимно | `page`, `page_size`; теги опубликованных статей текущего сайта. |
 | `GET /health` | Анонимно | Проверка процесса API. |
 | `GET /ready` | Анонимно | Проверка доступности PostgreSQL; `503`, если БД недоступна. |
 | `GET /` | Анонимно | `302` на `/docs`: корень домена открывает Swagger UI. |
@@ -143,6 +148,7 @@ access-токена.
 
 ```sh
 curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'X-Site-Key: default' \
   -H 'Content-Type: application/json' \
   -d '{"email":"alice@example.org","password":"example-password-2026"}'
 ```
@@ -151,6 +157,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 ```sh
 curl -X POST http://localhost:8080/api/v1/articles \
+  -H 'X-Site-Key: default' \
   -H 'Authorization: Bearer <access_token>' \
   -H 'Content-Type: application/json' \
   -d '{"title":"Первый пост","slug":"first-post","content":"# Привет","tags":["go"]}'
@@ -160,6 +167,7 @@ curl -X POST http://localhost:8080/api/v1/articles \
 
 ```sh
 curl -X PATCH http://localhost:8080/api/v1/articles/1 \
+  -H 'X-Site-Key: default' \
   -H 'Authorization: Bearer <access_token>' \
   -H 'If-Match: "1"' \
   -H 'Content-Type: application/json' \

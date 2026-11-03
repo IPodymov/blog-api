@@ -4,7 +4,7 @@
   "info": {
     "title": "Multi-user Blog API",
     "version": "1.0.0",
-    "description": "Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. На любом маршруте может быть 401, если передан невалидный Authorization."
+    "description": "Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. Мультисайтовость: каждый запрос к /api/v1 обязан содержать заголовок X-Site-Key. Пользователи, статьи, комментарии, лайки, теги, статистика и токены изолированы по сайтам; ID чужого сайта дают 404, токен чужого сайта — 401. На любом маршруте /api/v1 может быть 401, если передан невалидный Authorization."
   },
   "servers": [
     {
@@ -59,7 +59,11 @@
         ],
         "summary": "Регистрация пользователя",
         "description": "Роль всегда user. Возвращает токены только в этом приватном ответе. Rate limit всех auth: 10 запросов/мин на сетевой адрес.",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {},
           {
@@ -139,7 +143,11 @@
         ],
         "summary": "Вход",
         "description": "Вход",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {},
           {
@@ -215,7 +223,11 @@
         ],
         "summary": "Ротация refresh-токена",
         "description": "Одноразовая ротация. Повторное использование использованного токена отзывает всё семейство, включая access-токены. Одновременные refresh-запросы клиент должен сериализовать. Абсолютный срок семейства не продлевается.",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {},
           {
@@ -290,7 +302,11 @@
         ],
         "summary": "Выход и отзыв семейства",
         "description": "Идемпотентно, включая неизвестный токен корректного формата. Отзывает также все access-токены семейства.",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {},
           {
@@ -354,6 +370,9 @@
         "description": "Email и роль отсутствуют. Счётчики только опубликованных статей.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "user_id",
             "in": "path",
             "required": true,
@@ -396,6 +415,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -432,6 +454,9 @@
         "summary": "Опубликованные статьи автора",
         "description": "Опубликованные статьи автора",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "user_id",
             "in": "path",
@@ -482,6 +507,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -517,7 +545,11 @@
         ],
         "summary": "Собственный профиль с email",
         "description": "Собственный профиль с email",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -543,6 +575,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -571,7 +606,11 @@
         ],
         "summary": "Редактирование собственного профиля",
         "description": "Редактирование собственного профиля",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -653,6 +692,9 @@
         "description": "Все собственные статьи",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "$ref": "#/components/parameters/Page"
           },
           {
@@ -693,6 +735,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "401": {
             "$ref": "#/components/responses/E401"
           },
@@ -726,6 +771,9 @@
         "summary": "Сводная статистика автора",
         "description": "Все существующие свои статьи. Возвращает 5 самых просматриваемых за период, включая нулевые. Каждый день периода присутствует, в том числе с 0. Лайки и комментарии текущие, не события периода.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "$ref": "#/components/parameters/From"
           },
@@ -762,6 +810,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "401": {
             "$ref": "#/components/responses/E401"
           },
@@ -795,6 +846,9 @@
         "summary": "Показатели собственных статей",
         "description": "Показатели собственных статей",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "$ref": "#/components/parameters/Page"
           },
@@ -833,6 +887,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "401": {
             "$ref": "#/components/responses/E401"
           },
@@ -866,6 +923,9 @@
         "summary": "Публичный список публикаций",
         "description": "Публичный список публикаций",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "$ref": "#/components/parameters/Page"
           },
@@ -908,6 +968,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -938,7 +1001,11 @@
         ],
         "summary": "Создать статью",
         "description": "Создать статью",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -1055,8 +1122,11 @@
           "Articles"
         ],
         "summary": "Получить статью",
-        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из PUBLIC_SITE_URL + /articles/{slug}; у черновика null.",
+        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из public_url сайта (если пуст — PUBLIC_SITE_URL) + /articles/{slug}; у черновика null.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1122,6 +1192,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -1156,6 +1229,9 @@
         "summary": "Изменить статью",
         "description": "Автор либо администратор. Проверка версии атомарна. Снятие публикации сохраняет просмотры, лайки и комментарии для личной аналитики; из публичной статистики статья исчезает.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1291,6 +1367,9 @@
         "description": "Автор либо администратор. Физическое удаление каскадно удаляет комментарии, лайки, связи тегов, дедупликацию и агрегаты просмотров; все показатели автора пересчитываются сразу.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "article_id",
             "in": "path",
             "required": true,
@@ -1313,6 +1392,9 @@
         "responses": {
           "204": {
             "description": "Успешно."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -1354,8 +1436,11 @@
           "Articles"
         ],
         "summary": "Получить статью",
-        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из PUBLIC_SITE_URL + /articles/{slug}; у черновика null.",
+        "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из public_url сайта (если пуст — PUBLIC_SITE_URL) + /articles/{slug}; у черновика null.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "slug",
             "in": "path",
@@ -1421,6 +1506,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -1457,6 +1545,9 @@
         "summary": "Зарегистрировать фактическое открытие",
         "description": "Без тела. Только опубликованная статья. Автор и администратор: counted=false. Один учитываемый просмотр на посетителя/статью за VIEW_INTERVAL (по умолчанию 30 минут); отклонённый дубль окно не продлевает. Конкурентные запросы защищены транзакцией. Для авторизованного посетителя используется ID аккаунта, для гостя — подписанный сервером случайный cookie blog_visitor. Невалидный cookie заменяется. IP не хранится в аналитике. Лимит 60 запросов/мин на сетевой адрес. События просмотров и уникальные посетители не равнозначны; уникальные посетители не рассчитываются.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1508,6 +1599,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -1544,6 +1638,9 @@
         "summary": "Подробная статистика статьи",
         "description": "Только автор или администратор, включая черновики. UTC, границы дат включительны. Все дни с нулями; просмотры all-time и за период, лайки/комментарии текущие.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1589,6 +1686,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "401": {
             "$ref": "#/components/responses/E401"
           },
@@ -1625,6 +1725,9 @@
         "summary": "Комментарии статьи",
         "description": "Публикация доступна всем; черновик только автору и администратору. Плоский список ID ASC; parent_id связывает ответы. Удалённые комментарии представлены tombstone: content пустой, deleted=true; в счётчик не входят.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1666,6 +1769,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
           "403": {
             "$ref": "#/components/responses/E403"
           },
@@ -1700,6 +1806,9 @@
         "summary": "Добавить комментарий или ответ",
         "description": "Только к опубликованным статьям. Максимальная глубина ответов 1; parent_id должен указывать на неудалённый корневой комментарий этой же статьи.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
           {
             "name": "article_id",
             "in": "path",
@@ -1803,6 +1912,9 @@
         "description": "Автор комментария или администратор; удалённый комментарий изменять нельзя.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "comment_id",
             "in": "path",
             "required": true,
@@ -1902,6 +2014,9 @@
         "description": "Автор комментария или администратор. Soft delete с очисткой текста, ответы сохраняются, повторный DELETE существующего tombstone идемпотентен.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "comment_id",
             "in": "path",
             "required": true,
@@ -1921,6 +2036,9 @@
         "responses": {
           "204": {
             "description": "Успешно."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -1959,6 +2077,9 @@
         "description": "Только опубликованная статья. Идемпотентно: уникальная пара user/article.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "article_id",
             "in": "path",
             "required": true,
@@ -1989,6 +2110,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -2025,6 +2149,9 @@
         "description": "Только опубликованная статья. Идемпотентно, даже если лайка нет.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "name": "article_id",
             "in": "path",
             "required": true,
@@ -2055,6 +2182,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "401": {
             "$ref": "#/components/responses/E401"
@@ -2093,6 +2223,9 @@
         "description": "Алфавитный порядок name ASC; теги только черновиков не раскрываются.",
         "parameters": [
           {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
             "$ref": "#/components/parameters/Page"
           },
           {
@@ -2121,6 +2254,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
           },
           "403": {
             "$ref": "#/components/responses/E403"
@@ -2156,10 +2292,7 @@
         "description": "Проверка процесса",
         "parameters": [],
         "security": [
-          {},
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "responses": {
           "200": {
@@ -2189,9 +2322,6 @@
           },
           "405": {
             "$ref": "#/components/responses/E405"
-          },
-          "401": {
-            "$ref": "#/components/responses/E401"
           }
         }
       }
@@ -2206,10 +2336,7 @@
         "description": "Проверка PostgreSQL",
         "parameters": [],
         "security": [
-          {},
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "responses": {
           "200": {
@@ -2242,9 +2369,6 @@
           },
           "405": {
             "$ref": "#/components/responses/E405"
-          },
-          "401": {
-            "$ref": "#/components/responses/E401"
           }
         }
       }
@@ -2259,10 +2383,7 @@
         "description": "Документация API",
         "parameters": [],
         "security": [
-          {},
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "responses": {
           "200": {
@@ -2290,9 +2411,6 @@
           },
           "405": {
             "$ref": "#/components/responses/E405"
-          },
-          "401": {
-            "$ref": "#/components/responses/E401"
           }
         }
       }
@@ -2307,10 +2425,7 @@
         "description": "Документация API",
         "parameters": [],
         "security": [
-          {},
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "responses": {
           "200": {
@@ -2338,9 +2453,6 @@
           },
           "405": {
             "$ref": "#/components/responses/E405"
-          },
-          "401": {
-            "$ref": "#/components/responses/E401"
           }
         }
       }
@@ -2355,10 +2467,7 @@
         "description": "Корень домена перенаправляет на интерактивную документацию /docs.",
         "parameters": [],
         "security": [
-          {},
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "responses": {
           "302": {
@@ -2386,9 +2495,6 @@
           },
           "405": {
             "$ref": "#/components/responses/E405"
-          },
-          "401": {
-            "$ref": "#/components/responses/E401"
           }
         }
       }
@@ -3513,6 +3619,19 @@
       }
     },
     "parameters": {
+      "SiteKey": {
+        "name": "X-Site-Key",
+        "in": "header",
+        "required": true,
+        "description": "Ключ сайта, к которому относится запрос. Все данные (пользователи, статьи, комментарии, лайки, теги, статистика) и токены изолированы по сайтам. Отсутствие ключа: 400 site_required; неизвестный ключ: 400 unknown_site. Сайты создаёт оператор БД.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "example": "default"
+        }
+      },
       "Page": {
         "name": "page",
         "in": "query",
@@ -3658,7 +3777,7 @@
     },
     "responses": {
       "E400": {
-        "description": "Некорректный JSON, неизвестное поле или форма запроса.",
+        "description": "Некорректный JSON, неизвестное поле, форма запроса, отсутствующий или неизвестный X-Site-Key.",
         "content": {
           "application/json": {
             "schema": {
@@ -3667,7 +3786,7 @@
             "example": {
               "error": {
                 "code": "request_failed",
-                "message": "Некорректный JSON, неизвестное поле или форма запроса.",
+                "message": "Некорректный JSON, неизвестное поле, форма запроса, отсутствующий или неизвестный X-Site-Key.",
                 "details": null,
                 "request_id": "request-example"
               }
@@ -3748,7 +3867,7 @@
         }
       },
       "E409": {
-        "description": "Email, username или slug уже используется.",
+        "description": "Email, username или slug уже используется на этом сайте.",
         "content": {
           "application/json": {
             "schema": {
@@ -3757,7 +3876,7 @@
             "example": {
               "error": {
                 "code": "request_failed",
-                "message": "Email, username или slug уже используется.",
+                "message": "Email, username или slug уже используется на этом сайте.",
                 "details": null,
                 "request_id": "request-example"
               }
@@ -3923,7 +4042,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Непрозрачный 256-битный access-токен, TTL по умолчанию 15 минут; БД хранит только SHA-256."
+        "description": "Непрозрачный 256-битный access-токен, TTL по умолчанию 15 минут; БД хранит только SHA-256. Токен действует только на сайте (X-Site-Key), на котором выдан."
       }
     }
   }

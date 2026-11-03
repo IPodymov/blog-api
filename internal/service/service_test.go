@@ -37,12 +37,12 @@ func TestVisitorSignature(t *testing.T) {
 	}
 }
 func TestCanonicalDraft(t *testing.T) {
-	s := &Service{PublicURL: "https://blog.example/"}
-	draft := s.Canonical(domain.Article{Status: "draft", Slug: "secret"})
+	site := domain.Site{PublicURL: "https://blog.example/"}
+	draft := Canonical(site, domain.Article{Status: "draft", Slug: "secret"})
 	if draft.CanonicalURL != nil {
 		t.Fatal("draft link leaked")
 	}
-	published := s.Canonical(domain.Article{Status: "published", Slug: "post"})
+	published := Canonical(site, domain.Article{Status: "published", Slug: "post"})
 	if *published.CanonicalURL != "https://blog.example/articles/post" {
 		t.Fatal("incorrect URL")
 	}

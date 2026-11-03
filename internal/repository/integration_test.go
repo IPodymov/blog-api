@@ -46,33 +46,70 @@ func TestPostgresConstraintsAndSessions(t *testing.T) {
 		t.Fatal(e)
 	}
 	r := &repository.Store{DB: pool}
-	u, e := r.CreateUser(ctx, "owner", "owner@example.org", "test-only-hash")
+	site, e := r.Site(ctx, "default")
+	if e != nil {
+		t.Fatal("default site missing", e)
+	}
+	var otherSite int64
+	if e = pool.QueryRow(ctx, "INSERT INTO sites(key) VALUES('second') RETURNING id").Scan(&otherSite); e != nil {
+		t.Fatal(e)
+	}
+	u, e := r.CreateUser(ctx, site.ID, "owner", "owner@example.org", "test-only-hash")
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = r.CreateUser(ctx, "owner", "other@example.org", "hash"); e == nil {
+	if _, e = r.CreateUser(ctx, site.ID, "owner", "other@example.org", "hash"); e == nil {
 		t.Fatal("username uniqueness absent")
 	}
-	a, e := r.CreateArticle(ctx, u.ID, domain.ArticleInput{Title: "One", Slug: "one", Content: "body", Status: "published"})
+	// The same username/email on another site is a separate account.
+	stranger, e := r.CreateUser(ctx, otherSite, "owner", "owner@example.org", "hash")
+	if e != nil {
+		t.Fatal("per-site uniqueness wrong", e)
+	}
+	if _, e = r.User(ctx, otherSite, u.ID); e == nil {
+		t.Fatal("user visible on another site")
+	}
+	a, e := r.CreateArticle(ctx, site.ID, u.ID, domain.ArticleInput{Title: "One", Slug: "one", Content: "body", Status: "published"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, e := r.CreateArticle(ctx, u.ID, domain.ArticleInput{Title: "Two", Slug: "two", Content: "body", Status: "published"})
+	b, e := r.CreateArticle(ctx, site.ID, u.ID, domain.ArticleInput{Title: "Two", Slug: "two", Content: "body", Status: "published"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = pool.Exec(ctx, "INSERT INTO likes(article_id,user_id) VALUES($1,$2)", a.ID, u.ID); e != nil {
+	if _, e = r.CreateArticle(ctx, otherSite, u.ID, domain.ArticleInput{Title: "X", Slug: "x", Content: "body", Status: "draft"}); e == nil {
+		t.Fatal("author from another site accepted")
+	}
+	if _, e = r.CreateArticle(ctx, otherSite, stranger.ID, domain.ArticleInput{Title: "One", Slug: "one", Content: "body", Status: "draft"}); e != nil {
+		t.Fatal("per-site slug uniqueness wrong", e)
+	}
+	if _, e = r.Article(ctx, otherSite, a.ID, 0); e == nil {
+		t.Fatal("article visible on another site")
+	}
+	if _, e = pool.Exec(ctx, "INSERT INTO likes(site_id,article_id,user_id) VALUES($1,$2,$3)", site.ID, a.ID, u.ID); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = pool.Exec(ctx, "INSERT INTO likes(article_id,user_id) VALUES($1,$2)", a.ID, u.ID); e == nil {
+	if _, e = pool.Exec(ctx, "INSERT INTO likes(site_id,article_id,user_id) VALUES($1,$2,$3)", site.ID, a.ID, u.ID); e == nil {
 		t.Fatal("like uniqueness absent")
 	}
-	parent, e := r.CreateComment(ctx, a.ID, u.ID, domain.CommentInput{Content: "Root"})
+	if _, _, e = r.Like(ctx, site.ID, a.ID, stranger.ID, true); e == nil {
+		t.Fatal("cross-site like allowed")
+	}
+	parent, e := r.CreateComment(ctx, site.ID, a.ID, u.ID, domain.CommentInput{Content: "Root"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = r.CreateComment(ctx, b.ID, u.ID, domain.CommentInput{Content: "Wrong article", ParentID: &parent.ID}); e == nil {
+	if _, e = r.CreateComment(ctx, site.ID, b.ID, u.ID, domain.CommentInput{Content: "Wrong article", ParentID: &parent.ID}); e == nil {
 		t.Fatal("cross-article comment allowed")
+	}
+	if _, e = r.CreateComment(ctx, otherSite, a.ID, stranger.ID, domain.CommentInput{Content: "Wrong site"}); e == nil {
+		t.Fatal("cross-site comment allowed")
+	}
+	if _, e = r.CreateComment(ctx, site.ID, a.ID, stranger.ID, domain.CommentInput{Content: "Wrong site"}); e == nil {
+		t.Fatal("comment by user of another site allowed")
+	}
+	if _, e = r.Comment(ctx, otherSite, parent.ID); e == nil {
+		t.Fatal("comment visible on another site")
 	}
 	// Exact UTC day boundaries: three values, only inclusive requested days count.
 	if _, e = pool.Exec(ctx, "INSERT INTO article_daily_views VALUES($1,'2026-01-01',3),($1,'2026-01-02',4),($1,'2026-01-03',8)", a.ID); e != nil {
@@ -87,13 +124,20 @@ func TestPostgresConstraintsAndSessions(t *testing.T) {
 	if e = r.NewSession(ctx, u.ID, family, service.Hash(access), service.Hash(refresh), time.Now().Add(time.Hour), time.Now().Add(24*time.Hour)); e != nil {
 		t.Fatal(e)
 	}
+	// Tokens are bound to the user's site; a foreign site neither accepts nor revokes them.
+	if _, e = r.Authenticate(ctx, domain.Site{ID: otherSite}, service.Hash(access)); e == nil {
+		t.Fatal("access token accepted on another site")
+	}
+	if e = r.Rotate(ctx, otherSite, service.Hash(refresh), service.Hash(service.Random()), service.Hash(service.Random()), time.Now().Add(time.Hour)); e == nil {
+		t.Fatal("refresh token accepted on another site")
+	}
 	var wg sync.WaitGroup
 	out := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			out <- r.Rotate(ctx, service.Hash(refresh), service.Hash(service.Random()), service.Hash(service.Random()), time.Now().Add(time.Hour))
+			out <- r.Rotate(ctx, site.ID, service.Hash(refresh), service.Hash(service.Random()), service.Hash(service.Random()), time.Now().Add(time.Hour))
 		}()
 	}
 	wg.Wait()
@@ -111,10 +155,10 @@ func TestPostgresConstraintsAndSessions(t *testing.T) {
 	if wins != 1 || failures != 1 {
 		t.Fatal("refresh race", wins, failures)
 	}
-	if _, e = r.Authenticate(ctx, service.Hash(access)); e == nil {
+	if _, e = r.Authenticate(ctx, site, service.Hash(access)); e == nil {
 		t.Fatal("replay did not revoke access")
 	}
-	if _, e = pool.Exec(ctx, "DELETE FROM users WHERE id=$1", u.ID); e != nil {
+	if _, e = pool.Exec(ctx, "DELETE FROM users WHERE id=ANY($1)", []int64{u.ID, stranger.ID}); e != nil {
 		t.Fatal(e)
 	}
 	for _, table := range []string{"articles", "likes", "comments", "session_families", "refresh_sessions", "access_sessions", "article_daily_views"} {

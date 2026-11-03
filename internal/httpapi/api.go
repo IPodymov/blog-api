@@ -77,6 +77,7 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 		io.WriteString(w, `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Blog API</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.29.5/swagger-ui.css"></head><body><div id="swagger"></div><script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.29.5/swagger-ui-bundle.js"></script><script>SwaggerUIBundle({url:'/openapi.yaml',dom_id:'#swagger',persistAuthorization:false})</script></body></html>`)
 	})
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(a.siteActor)
 		r.Post("/auth/register", a.register)
 		r.Post("/auth/login", a.login)
 		r.Post("/auth/refresh", a.refresh)
@@ -298,7 +299,7 @@ func (a *API) middleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Expose-Headers", "ETag,X-Request-ID,Retry-After")
 			if r.Method == "OPTIONS" {
 				w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,If-Match")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,If-Match,X-Site-Key")
 				w.WriteHeader(204)
 				return
 			}
@@ -326,23 +327,34 @@ func (a *API) middleware(next http.Handler) http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, 512<<10)
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		var ac domain.Actor
+		start := time.Now()
+		next.ServeHTTP(w, r.WithContext(ctx))
+		a.Log.Info("http request", "request_id", rid, "method", r.Method, "duration_ms", time.Since(start).Milliseconds())
+	})
+}
+
+// siteActor binds every API request to the site from X-Site-Key, then authenticates
+// the bearer token within that site only: a token of another site is invalid here.
+func (a *API) siteActor(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		site, e := a.Service.Site(r.Context(), r.Header.Get("X-Site-Key"))
+		if e != nil {
+			a.respond(w, r, nil, e, 0)
+			return
+		}
+		ac := domain.Actor{Site: site}
 		if h := r.Header.Get("Authorization"); h != "" {
 			if !strings.HasPrefix(h, "Bearer ") {
 				a.respond(w, r, nil, domain.Fail(401, "invalid_token", "Ожидается Bearer token"), 0)
 				return
 			}
-			var e error
-			ac, e = a.Service.Authenticate(ctx, strings.TrimPrefix(h, "Bearer "))
+			ac, e = a.Service.Authenticate(r.Context(), site, strings.TrimPrefix(h, "Bearer "))
 			if e != nil {
 				a.respond(w, r, nil, e, 0)
 				return
 			}
 		}
-		ctx = context.WithValue(ctx, actorKey, ac)
-		start := time.Now()
-		next.ServeHTTP(w, r.WithContext(ctx))
-		a.Log.Info("http request", "request_id", rid, "method", r.Method, "duration_ms", time.Since(start).Milliseconds())
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey, ac)))
 	})
 }
 

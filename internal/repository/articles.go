@@ -18,18 +18,18 @@ func scanArticle(row pgx.Row) (domain.Article, error) {
 	e := row.Scan(&a.ID, &a.Title, &a.Slug, &a.Description, &a.Content, &a.Status, &a.Version, &a.CreatedAt, &a.UpdatedAt, &a.PublishedAt, &a.Views, &a.Likes, &a.Comments, &a.Popularity, &a.Author.ID, &a.Author.Username, &a.Author.DisplayName, &a.Author.AvatarURL, &a.Author.Bio, &a.Author.CreatedAt, &a.Tags, &a.Liked)
 	return a, Translate(e)
 }
-func (s *Store) Article(ctx context.Context, id, viewer int64) (domain.Article, error) {
-	return scanArticle(s.DB.QueryRow(ctx, articleSelect+" WHERE a.id=$2", viewer, id))
+func (s *Store) Article(ctx context.Context, site, id, viewer int64) (domain.Article, error) {
+	return scanArticle(s.DB.QueryRow(ctx, articleSelect+" WHERE a.id=$2 AND a.site_id=$3", viewer, id, site))
 }
-func (s *Store) BySlug(ctx context.Context, slug string, viewer int64) (domain.Article, error) {
-	return scanArticle(s.DB.QueryRow(ctx, articleSelect+" WHERE a.slug=$2 AND a.status='published'", viewer, slug))
+func (s *Store) BySlug(ctx context.Context, site int64, slug string, viewer int64) (domain.Article, error) {
+	return scanArticle(s.DB.QueryRow(ctx, articleSelect+" WHERE a.slug=$2 AND a.site_id=$3 AND a.status='published'", viewer, slug, site))
 }
 
-const articleWhere = ` WHERE ($2::bigint=0 OR a.author_id=$2) AND (($3 AND ($4='' OR a.status=$4)) OR (NOT $3 AND a.status='published')) AND ($5='' OR EXISTS(SELECT 1 FROM article_tags at JOIN tags t ON t.id=at.tag_id WHERE at.article_id=a.id AND t.name=$5)) AND ($6='' OR to_tsvector('simple',a.title||' '||a.description||' '||a.content) @@ plainto_tsquery('simple',$6)) `
+const articleWhere = ` WHERE a.site_id=$7 AND ($2::bigint=0 OR a.author_id=$2) AND (($3 AND ($4='' OR a.status=$4)) OR (NOT $3 AND a.status='published')) AND ($5='' OR EXISTS(SELECT 1 FROM article_tags at JOIN tags t ON t.id=at.tag_id WHERE at.article_id=a.id AND t.name=$5)) AND ($6='' OR to_tsvector('simple',a.title||' '||a.description||' '||a.content) @@ plainto_tsquery('simple',$6)) `
 
-func (s *Store) Articles(ctx context.Context, viewer int64, f domain.Filter) (domain.Page[domain.Article], error) {
+func (s *Store) Articles(ctx context.Context, site, viewer int64, f domain.Filter) (domain.Page[domain.Article], error) {
 	p := domain.Page[domain.Article]{Items: []domain.Article{}, Page: f.Page, PageSize: f.Size}
-	args := []any{viewer, f.Author, f.Own, f.Status, f.Tag, f.Search}
+	args := []any{viewer, f.Author, f.Own, f.Status, f.Tag, f.Search, site}
 	// Count and page share one MVCC snapshot, so total and items agree within a response.
 	e := s.Tx(ctx, func(tx pgx.Tx) error {
 		if _, e := tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"); e != nil {
@@ -40,7 +40,7 @@ func (s *Store) Articles(ctx context.Context, viewer int64, f domain.Filter) (do
 		}
 		order := map[string]string{"published_at": "a.published_at DESC NULLS LAST,a.id DESC", "views": "a.views DESC,a.id DESC", "popularity": "a.popularity DESC,a.id DESC", "created_at": "a.created_at DESC,a.id DESC"}[f.Sort]
 		args = append(args, f.Size, (f.Page-1)*f.Size)
-		rows, e := tx.Query(ctx, articleSelect+articleWhere+" ORDER BY "+order+" LIMIT $7 OFFSET $8", args...)
+		rows, e := tx.Query(ctx, articleSelect+articleWhere+" ORDER BY "+order+" LIMIT $8 OFFSET $9", args...)
 		if e != nil {
 			return e
 		}
@@ -73,10 +73,10 @@ func tags(ctx context.Context, tx pgx.Tx, id int64, names []string) error {
 	}
 	return nil
 }
-func (s *Store) CreateArticle(ctx context.Context, author int64, in domain.ArticleInput) (domain.Article, error) {
+func (s *Store) CreateArticle(ctx context.Context, site, author int64, in domain.ArticleInput) (domain.Article, error) {
 	var id int64
 	e := s.Tx(ctx, func(tx pgx.Tx) error {
-		if e := tx.QueryRow(ctx, `INSERT INTO articles(author_id,title,slug,description,content,status,published_at) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6='published' THEN now() END) RETURNING id`, author, in.Title, in.Slug, in.Description, in.Content, in.Status).Scan(&id); e != nil {
+		if e := tx.QueryRow(ctx, `INSERT INTO articles(site_id,author_id,title,slug,description,content,status,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $7='published' THEN now() END) RETURNING id`, site, author, in.Title, in.Slug, in.Description, in.Content, in.Status).Scan(&id); e != nil {
 			return e
 		}
 		return tags(ctx, tx, id, in.Tags)
@@ -84,11 +84,11 @@ func (s *Store) CreateArticle(ctx context.Context, author int64, in domain.Artic
 	if e != nil {
 		return domain.Article{}, e
 	}
-	return s.Article(ctx, id, author)
+	return s.Article(ctx, site, id, author)
 }
-func (s *Store) UpdateArticle(ctx context.Context, id, version, viewer int64, in domain.ArticleInput) (domain.Article, error) {
+func (s *Store) UpdateArticle(ctx context.Context, site, id, version, viewer int64, in domain.ArticleInput) (domain.Article, error) {
 	e := s.Tx(ctx, func(tx pgx.Tx) error {
-		r, e := tx.Exec(ctx, `UPDATE articles SET title=$3,slug=$4,description=$5,content=$6,status=$7,version=version+1,updated_at=now(),published_at=CASE WHEN $7='draft' THEN NULL WHEN status='draft' THEN now() ELSE published_at END WHERE id=$1 AND version=$2`, id, version, in.Title, in.Slug, in.Description, in.Content, in.Status)
+		r, e := tx.Exec(ctx, `UPDATE articles SET title=$3,slug=$4,description=$5,content=$6,status=$7,version=version+1,updated_at=now(),published_at=CASE WHEN $7='draft' THEN NULL WHEN status='draft' THEN now() ELSE published_at END WHERE id=$1 AND version=$2 AND site_id=$8`, id, version, in.Title, in.Slug, in.Description, in.Content, in.Status, site)
 		if e != nil {
 			return e
 		}
@@ -100,10 +100,10 @@ func (s *Store) UpdateArticle(ctx context.Context, id, version, viewer int64, in
 	if e != nil {
 		return domain.Article{}, e
 	}
-	return s.Article(ctx, id, viewer)
+	return s.Article(ctx, site, id, viewer)
 }
-func (s *Store) DeleteArticle(ctx context.Context, id, version int64) error {
-	r, e := s.DB.Exec(ctx, "DELETE FROM articles WHERE id=$1 AND version=$2", id, version)
+func (s *Store) DeleteArticle(ctx context.Context, site, id, version int64) error {
+	r, e := s.DB.Exec(ctx, "DELETE FROM articles WHERE id=$1 AND version=$2 AND site_id=$3", id, version, site)
 	if e != nil {
 		return Translate(e)
 	}
@@ -114,11 +114,11 @@ func (s *Store) DeleteArticle(ctx context.Context, id, version int64) error {
 }
 
 // All interactions lock the article, serializing against unpublication/deletion.
-func (s *Store) PublishedTx(ctx context.Context, id int64, fn func(pgx.Tx, int64) error) error {
+func (s *Store) PublishedTx(ctx context.Context, site, id int64, fn func(pgx.Tx, int64) error) error {
 	return s.Tx(ctx, func(tx pgx.Tx) error {
 		var author int64
 		var status string
-		if e := tx.QueryRow(ctx, "SELECT author_id,status FROM articles WHERE id=$1 FOR UPDATE", id).Scan(&author, &status); e != nil {
+		if e := tx.QueryRow(ctx, "SELECT author_id,status FROM articles WHERE id=$1 AND site_id=$2 FOR UPDATE", id, site).Scan(&author, &status); e != nil {
 			return e
 		}
 		if status != "published" {
@@ -127,13 +127,13 @@ func (s *Store) PublishedTx(ctx context.Context, id int64, fn func(pgx.Tx, int64
 		return fn(tx, author)
 	})
 }
-func (s *Store) Like(ctx context.Context, id, user int64, on bool) (int64, bool, error) {
+func (s *Store) Like(ctx context.Context, site, id, user int64, on bool) (int64, bool, error) {
 	var count int64
 	var liked bool
-	e := s.PublishedTx(ctx, id, func(tx pgx.Tx, _ int64) error {
+	e := s.PublishedTx(ctx, site, id, func(tx pgx.Tx, _ int64) error {
 		var e error
 		if on {
-			_, e = tx.Exec(ctx, "INSERT INTO likes(article_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING", id, user)
+			_, e = tx.Exec(ctx, "INSERT INTO likes(site_id,article_id,user_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING", site, id, user)
 		} else {
 			_, e = tx.Exec(ctx, "DELETE FROM likes WHERE article_id=$1 AND user_id=$2", id, user)
 		}
@@ -144,13 +144,16 @@ func (s *Store) Like(ctx context.Context, id, user int64, on bool) (int64, bool,
 	})
 	return count, liked, e
 }
-func (s *Store) Tags(ctx context.Context, f domain.Filter) (domain.Page[string], error) {
+
+// Tag names are a shared dictionary; only tags used by published articles of the site are listed.
+func (s *Store) Tags(ctx context.Context, site int64, f domain.Filter) (domain.Page[string], error) {
 	p := domain.Page[string]{Items: []string{}, Page: f.Page, PageSize: f.Size}
-	e := s.DB.QueryRow(ctx, "SELECT count(*) FROM tags WHERE EXISTS(SELECT 1 FROM article_tags at JOIN articles a ON a.id=at.article_id WHERE at.tag_id=tags.id AND a.status='published')").Scan(&p.Total)
+	const used = "EXISTS(SELECT 1 FROM article_tags at JOIN articles a ON a.id=at.article_id WHERE at.tag_id=tags.id AND a.site_id=$1 AND a.status='published')"
+	e := s.DB.QueryRow(ctx, "SELECT count(*) FROM tags WHERE "+used, site).Scan(&p.Total)
 	if e != nil {
 		return p, e
 	}
-	rows, e := s.DB.Query(ctx, "SELECT name FROM tags WHERE EXISTS(SELECT 1 FROM article_tags at JOIN articles a ON a.id=at.article_id WHERE at.tag_id=tags.id AND a.status='published') ORDER BY name LIMIT $1 OFFSET $2", f.Size, (f.Page-1)*f.Size)
+	rows, e := s.DB.Query(ctx, "SELECT name FROM tags WHERE "+used+" ORDER BY name LIMIT $2 OFFSET $3", site, f.Size, (f.Page-1)*f.Size)
 	if e != nil {
 		return p, e
 	}

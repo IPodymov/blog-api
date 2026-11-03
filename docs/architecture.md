@@ -4,7 +4,7 @@
 
 Модульный монолит обслуживает блог как одну согласованную транзакционную систему. Отдельные файлы модулей users/articles/comments/sessions/statistics позволяют развивать функции без сетевых границ и распределённых транзакций. PostgreSQL обеспечивает необходимые блокировки и атомарность. Redis и фоновые очереди для этого объёма задач не нужны.
 
-HTTP отвечает за протокол: chi, JSON и query, заголовки, bearer authentication middleware, CORS, размер тела и rate limit. Валидация бизнес-полей и проверки автора/admin находятся в service, поэтому не зависят от конкретного HTTP-маршрута. Domain содержит сущности, отдельные публичные/приватные DTO, типизированные ошибки, правила видимости и даты. Repository отвечает за SQL и границы транзакционных операций. Config и cmd создают инфраструктуру, pool, slog, сервер и завершение.
+HTTP отвечает за протокол: chi, JSON и query, заголовки, определение сайта по `X-Site-Key`, bearer authentication middleware, CORS, размер тела и rate limit. Валидация бизнес-полей и проверки автора/admin находятся в service, поэтому не зависят от конкретного HTTP-маршрута. Domain содержит сущности, отдельные публичные/приватные DTO, типизированные ошибки, правила видимости и даты. Repository отвечает за SQL и границы транзакционных операций. Config и cmd создают инфраструктуру, pool, slog, сервер и завершение.
 
 Направление зависимостей: `cmd → httpapi → service → repository → pgx`; domain не зависит от HTTP или PostgreSQL. Интерфейсы добавляются при реальном наличии альтернативных адаптеров; искусственный интерфейс ко всем методам Store здесь усложнил бы навигацию. Интеграционные тесты SQL используют реальный PostgreSQL, а чистые бизнес-инварианты тестируются без БД.
 
@@ -14,6 +14,8 @@ HTTP отвечает за протокол: chi, JSON и query, заголов�
 
 ```mermaid
 erDiagram
+    SITES ||--o{ USERS: isolates
+    SITES ||--o{ ARTICLES: isolates
     USERS ||--o{ ARTICLES: writes
     USERS ||--o{ COMMENTS: comments
     USERS ||--o{ LIKES: likes
@@ -27,10 +29,18 @@ erDiagram
     ARTICLES ||--o{ ARTICLE_DAILY_VIEWS: aggregates
     SESSION_FAMILIES ||--o{ REFRESH_SESSIONS: rotates
     SESSION_FAMILIES ||--o{ ACCESS_SESSIONS: authenticates
+    SITES {
+        bigint id PK
+        text key UK
+        text name
+        text public_url
+        timestamptz created_at
+    }
     USERS {
         bigint id PK
-        text username UK
-        text email UK
+        bigint site_id FK
+        text username
+        text email
         text password_hash
         text display_name
         text avatar_url
@@ -40,9 +50,10 @@ erDiagram
     }
     ARTICLES {
         bigint id PK
+        bigint site_id FK
         bigint author_id FK
         text title
-        text slug UK
+        text slug
         text description
         text content
         text status
@@ -53,6 +64,7 @@ erDiagram
     }
     COMMENTS {
         bigint id PK
+        bigint site_id FK
         bigint article_id FK
         bigint author_id FK
         bigint parent_id FK
@@ -65,6 +77,7 @@ erDiagram
     LIKES {
         bigint article_id PK, FK
         bigint user_id PK, FK
+        bigint site_id FK
         timestamptz created_at
     }
     TAGS {
@@ -106,12 +119,12 @@ erDiagram
 
 ## Целостность и индексы
 
-Все пользовательские ID — PostgreSQL generated identity bigint. UNIQUE закрепляет username, нормализованный email, slug и имя тега. PRIMARY KEY `(article_id,user_id)` гарантирует один лайк независимо от конкурентности Go. Связь тегов уникальна по `(article_id,tag_id)`. У комментариев составной FK `(parent_id,article_id)` исключает ответы в другой статье; CHECK depth и trigger проверки parent исключают глубину >1. Статус статьи ограничен draft/published, публикация согласована с ненулевой published_at, версия положительная. Ограничения длины текста продублированы в БД.
+Все пользовательские ID — PostgreSQL generated identity bigint. UNIQUE закрепляет в пределах сайта username, нормализованный email и slug, а имя тега — глобально, потому что справочник тегов общий. Составные FK с `site_id` у статей, комментариев и лайков исключают связи между сайтами на уровне БД; модель изоляции описана в [sites.md](sites.md). PRIMARY KEY `(article_id,user_id)` гарантирует один лайк независимо от конкурентности Go. Связь тегов уникальна по `(article_id,tag_id)`. У комментариев составной FK `(parent_id,article_id)` исключает ответы в другой статье; CHECK depth и trigger проверки parent исключают глубину >1. Статус статьи ограничен draft/published, публикация согласована с ненулевой published_at, версия положительная. Ограничения длины текста продублированы в БД.
 
 Индексы:
 
 - `(author_id,status,id DESC)` — выборка материалов автора и публичных списков.
-- `(published_at DESC,id DESC)` с условием published — порядок публикаций.
+- `(site_id,published_at DESC,id DESC)` с условием published — порядок публикаций сайта.
 - GIN `to_tsvector('simple', title || ' ' || description || ' ' || content)` — полнотекстовый поиск.
 - `(tag_id,article_id)` — фильтр тегов, PK в обратном направлении — загрузка тегов статьи.
 - `(article_id,id)` — список комментариев и счётчик; PK лайков начинается с article_id.

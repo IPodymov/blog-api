@@ -28,7 +28,7 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.Register(r.Context(), b.Username, b.Email, b.Password)
+	v, e := a.Service.Register(r.Context(), actor(r).Site, b.Username, b.Email, b.Password)
 	a.respond(w, r, v, e, 201)
 }
 func (a *API) login(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,7 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.Login(r.Context(), b.Email, b.Password)
+	v, e := a.Service.Login(r.Context(), actor(r).Site, b.Email, b.Password)
 	a.respond(w, r, v, e, 200)
 }
 func (a *API) refresh(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (a *API) refresh(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.Refresh(r.Context(), b.Refresh)
+	v, e := a.Service.Refresh(r.Context(), actor(r).Site, b.Refresh)
 	a.respond(w, r, v, e, 200)
 }
 func (a *API) logout(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func (a *API) logout(w http.ResponseWriter, r *http.Request) {
 		if len(b.Refresh) != 43 {
 			e = domain.Invalid("refresh_token", "Ожидается токен длиной 43")
 		} else {
-			e = a.Service.Logout(r.Context(), b.Refresh)
+			e = a.Service.Logout(r.Context(), actor(r).Site, b.Refresh)
 		}
 	}
 	a.respond(w, r, nil, e, 204)
@@ -69,7 +69,7 @@ func (a *API) profile(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.PublicProfile(r.Context(), n)
+	v, e := a.Service.PublicProfile(r.Context(), actor(r).Site, n)
 	a.respond(w, r, v, e, 200)
 }
 func (a *API) me(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +91,7 @@ func (a *API) listArticles(w http.ResponseWriter, r *http.Request, own, user boo
 	if e == nil && user {
 		f.Author, e = id(r, "user_id")
 		if e == nil {
-			_, e = a.Service.PublicProfile(r.Context(), f.Author)
+			_, e = a.Service.PublicProfile(r.Context(), actor(r).Site, f.Author)
 		}
 	}
 	if e != nil {
@@ -293,6 +293,6 @@ func (a *API) tags(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.Repo.Tags(r.Context(), f)
+	v, e := a.Service.Repo.Tags(r.Context(), actor(r).Site.ID, f)
 	a.respond(w, r, v, e, 200)
 }

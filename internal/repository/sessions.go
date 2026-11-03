@@ -22,11 +22,12 @@ func insertTokens(ctx context.Context, tx pgx.Tx, family, access, refresh string
 	_, e := tx.Exec(ctx, "INSERT INTO access_sessions(token_hash,family_id,expires_at) VALUES($1,$2,$3)", access, family, at)
 	return e
 }
-func (s *Store) Rotate(ctx context.Context, old, access, refresh string, at time.Time) error {
+func (s *Store) Rotate(ctx context.Context, site int64, old, access, refresh string, at time.Time) error {
 	invalid := false
 	e := s.Tx(ctx, func(tx pgx.Tx) error {
 		var family string
-		if e := tx.QueryRow(ctx, "SELECT family_id FROM refresh_sessions WHERE token_hash=$1", old).Scan(&family); e != nil {
+		// A token of another site is treated as unknown and does not revoke that site's session.
+		if e := tx.QueryRow(ctx, "SELECT r.family_id FROM refresh_sessions r JOIN session_families f ON f.id=r.family_id JOIN users u ON u.id=f.user_id WHERE r.token_hash=$1 AND u.site_id=$2", old, site).Scan(&family); e != nil {
 			if e == pgx.ErrNoRows {
 				invalid = true
 				return nil
@@ -58,24 +59,24 @@ func (s *Store) Rotate(ctx context.Context, old, access, refresh string, at time
 	}
 	return nil
 }
-func (s *Store) Authenticate(ctx context.Context, hash string) (domain.Actor, error) {
-	var a domain.Actor
-	e := s.DB.QueryRow(ctx, `SELECT u.id,u.role FROM access_sessions ac JOIN session_families f ON f.id=ac.family_id JOIN users u ON u.id=f.user_id WHERE ac.token_hash=$1 AND ac.expires_at>now() AND f.expires_at>now() AND NOT f.revoked`, hash).Scan(&a.ID, &a.Role)
+func (s *Store) Authenticate(ctx context.Context, site domain.Site, hash string) (domain.Actor, error) {
+	a := domain.Actor{Site: site}
+	e := s.DB.QueryRow(ctx, `SELECT u.id,u.role FROM access_sessions ac JOIN session_families f ON f.id=ac.family_id JOIN users u ON u.id=f.user_id WHERE ac.token_hash=$1 AND u.site_id=$2 AND ac.expires_at>now() AND f.expires_at>now() AND NOT f.revoked`, hash, site.ID).Scan(&a.ID, &a.Role)
 	if e == pgx.ErrNoRows {
 		return a, domain.Fail(401, "invalid_token", "Access-токен недействителен")
 	}
 	return a, e
 }
-func (s *Store) Logout(ctx context.Context, hash string) error {
-	_, e := s.DB.Exec(ctx, "UPDATE session_families SET revoked=true WHERE id=(SELECT family_id FROM refresh_sessions WHERE token_hash=$1)", hash)
+func (s *Store) Logout(ctx context.Context, site int64, hash string) error {
+	_, e := s.DB.Exec(ctx, "UPDATE session_families f SET revoked=true FROM users u WHERE u.id=f.user_id AND u.site_id=$2 AND f.id=(SELECT family_id FROM refresh_sessions WHERE token_hash=$1)", hash, site)
 	return e
 }
 
 // Register commits the account and its first session atomically.
-func (s *Store) Register(ctx context.Context, username, email, passwordHash, family, access, refresh string, at, rt time.Time) error {
+func (s *Store) Register(ctx context.Context, site int64, username, email, passwordHash, family, access, refresh string, at, rt time.Time) error {
 	return s.Tx(ctx, func(tx pgx.Tx) error {
 		var id int64
-		if e := tx.QueryRow(ctx, "INSERT INTO users(username,email,password_hash) VALUES($1,$2,$3) RETURNING id", username, email, passwordHash).Scan(&id); e != nil {
+		if e := tx.QueryRow(ctx, "INSERT INTO users(site_id,username,email,password_hash) VALUES($1,$2,$3,$4) RETURNING id", site, username, email, passwordHash).Scan(&id); e != nil {
 			return e
 		}
 		if _, e := tx.Exec(ctx, "INSERT INTO session_families(id,user_id,expires_at) VALUES($1,$2,$3)", family, id, rt); e != nil {

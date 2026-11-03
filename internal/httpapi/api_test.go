@@ -63,7 +63,8 @@ func TestMiddlewareBoundaries(t *testing.T) {
 	}{
 		{"GET", "/health", "", "", 0, 200}, {"GET", "/health", "https://untrusted.example", "", 0, 403},
 		{"OPTIONS", "/api/v1/articles", "https://blog.example", "", 0, 204},
-		{"GET", "/health", "", "Bearer invalid", 0, 401}, {"POST", "/api/v1/articles", "", "", 513 << 10, 413},
+		{"GET", "/health", "", "Bearer invalid", 0, 200}, {"POST", "/api/v1/articles", "", "", 513 << 10, 413},
+		{"GET", "/api/v1/articles", "", "", 0, 400}, {"GET", "/api/v1/me", "", "Bearer invalid", 0, 400},
 		{"GET", "/not-found", "", "", 0, 404},
 	} {
 		r := httptest.NewRequest(tc.method, tc.path, nil)

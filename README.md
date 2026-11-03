@@ -2,7 +2,9 @@
 
 Развёртывание API в Vercel с PostgreSQL Neon: [docs/vercel.md](docs/vercel.md).
 
-Рабочий модульный монолит на Go: PostgreSQL, chi, pgx, net/http, slog. Контракт — [openapi.yaml](api/openapi.yaml), Swagger UI — `/docs`; описание всех ручек, параметров и тел запросов — [docs/api.md](docs/api.md). API работает с Markdown; веб-интерфейс блога не входит в проект. Каноническая ссылка ведёт на настроенный публичный сайт, который должен реализовать страницу `/articles/{slug}`.
+Один API обслуживает много сайтов с изолированными данными. Каждый запрос к `/api/v1` передаёт заголовок `X-Site-Key`. Добавление сайта, правила изоляции и локальная разработка: [docs/sites.md](docs/sites.md).
+
+Рабочий модульный монолит на Go: PostgreSQL, chi, pgx, net/http, slog. Контракт — [openapi.yaml](api/openapi.yaml), Swagger UI — `/docs`; описание всех ручек, параметров и тел запросов — [docs/api.md](docs/api.md). API работает с Markdown; веб-интерфейс блога не входит в проект. Каноническая ссылка ведёт на публичный адрес текущего сайта, который должен реализовать страницу `/articles/{slug}`.
 
 ## Быстрый запуск
 
@@ -26,6 +28,8 @@ docker compose up -d db
 make migrate
 make run
 ```
+
+Миграции создают сайт `default`. Как настроить несколько локальных сайтов: [docs/sites.md](docs/sites.md#локальная-разработка).
 
 `make run` собирает и запускает бинарник API напрямую. Для остановки нажмите `Ctrl+C` в этом терминале: сервер закроет порт 8080 и завершит активные запросы (до 15 секунд). При превышении таймаута оставшиеся соединения закрываются принудительно. Не завершайте только родительский процесс `go run`: его дочерний API может продолжить работу.
 
@@ -64,7 +68,7 @@ internal/repository/ параметризованный SQL, транзакци�
 internal/httpapi/    chi, обработчики, decode, CORS, rate limit, HTTP errors
 migrations/          встроенные SQL-миграции
 scripts/             сборка для Vercel
-docs/                API, архитектура, Vercel, отчёт о проверке
+docs/                API, сайты, архитектура, Vercel, отчёт о проверке
 .github/workflows/   CI: lint, unit, интеграционные тесты, контракт, Docker
 ```
 
@@ -78,7 +82,7 @@ HTTP-слой проверяет JSON, размер тела, query/path и `If-
 
 ## Контракт и решения
 
-Префикс `/api/v1`. Полный список схем, параметров, примеров и статусов находится в OpenAPI.
+Префикс `/api/v1`, обязательный заголовок `X-Site-Key`. Полный список схем, параметров, примеров и статусов находится в OpenAPI.
 
 | Маршрут | Права / назначение |
 |---|---|
@@ -107,13 +111,13 @@ HTTP-слой проверяет JSON, размер тела, query/path и `If-
 | `PUT`, `DELETE /articles/{article_id}/like` | Пользователь; идемпотентная установка/снятие |
 | `GET /tags` | Все; только теги опубликованных статей |
 
-`GET /` (редирект на `/docs`), `GET /health`, `GET /ready`, `GET /docs`, `GET /openapi.yaml` находятся вне API-префикса. Все публичные маршруты принимают необязательный bearer-токен; если он передан и недействителен, ответ 401. Публичный профиль всегда публичный, даже при запросе владельца. Приватные поля доступны только через `/me`. Администратор назначается оператором БД, не через регистрацию:
+`GET /` (редирект на `/docs`), `GET /health`, `GET /ready`, `GET /docs`, `GET /openapi.yaml` находятся вне API-префикса. Все публичные маршруты `/api/v1` принимают необязательный bearer-токен; если он передан и недействителен или выдан на другом сайте, ответ 401. Публичный профиль всегда публичный, даже при запросе владельца. Приватные поля доступны только через `/me`. Администратор назначается оператором БД, не через регистрацию, и действует только на своём сайте:
 
 ```sql
-UPDATE users SET role='admin' WHERE username='your_admin';
+UPDATE users SET role='admin' WHERE username='your_admin' AND site_id=(SELECT id FROM sites WHERE key='default');
 ```
 
-ID — положительные bigint. Статья содержит публичного автора, все текстовые поля и счётчики. `canonical_url` равен `PUBLIC_SITE_URL/articles/{slug}` только при публикации, иначе null. Клиент распространяет эту ссылку самостоятельно; изменение slug меняет ссылку, старый slug не перенаправляется.
+ID — положительные bigint. Статья содержит публичного автора, все текстовые поля и счётчики. `canonical_url` равен `{public_url сайта}/articles/{slug}` только при публикации (пустой `public_url` заменяется на `PUBLIC_SITE_URL`), иначе null. Клиент распространяет эту ссылку самостоятельно; изменение slug меняет ссылку, старый slug не перенаправляется.
 
 Пагинация offset: `page=1`, `page_size=20`, максимум 100, page максимум 100000. Ответ `{items,page,page_size,total}`. Для статей сортировка по убыванию `published_at` (default), `views`, `popularity`, `created_at`, затем ID DESC. Формула популярности: `views + 5*likes + 3*comments`; это простая прозрачная формула без обещания трендового рейтинга. Поиск — PostgreSQL full text с конфигурацией simple, фильтр `tag` точный (один тег). В `/me/articles` `status` необязателен. Комментарии — ID ASC, теги — name ASC. Сортировка стабильна при равных значениях; обновления данных между запросами могут перемещать записи между страницами. Для небольшого блога offset проще; при большом количестве данных можно добавить keyset pagination отдельной версией контракта.
 
@@ -160,39 +164,40 @@ Rate limiting в памяти процесса: общие запросы 300/м
 
 HTTP timeouts: headers 5s, read 15s, write 20s, idle 60s; обработчики получают context с deadline 10s. SIGINT/SIGTERM дают 15s для graceful shutdown. `/health` проверяет процесс, `/ready` — соединение PostgreSQL (2s). Логи JSON slog содержат request_id, метод и duration; нет request body, паролей, токенов, URL/query, IP и текстов SQL-ошибок. Клиент получает `X-Request-ID`; невалидный Authorization даёт 401 даже на публичном маршруте. Успешные ответы API имеют `Cache-Control: no-store` для предотвращения кеширования приватных ответов.
 
-Бэкап PostgreSQL обязателен для сохранения дневной истории; автоматические резервные копии/метрики развёртывания зависят от окружения. Миграции запускаются отдельным процессом до API, под advisory lock и с checksum. Предоставлена начальная forward-only миграция; откат схемы — восстановление резервной копии или новая компенсирующая миграция.
+Бэкап PostgreSQL обязателен для сохранения дневной истории; автоматические резервные копии/метрики развёртывания зависят от окружения. Миграции запускаются отдельным процессом до API, под advisory lock и с checksum. Миграции forward-only; откат схемы — восстановление резервной копии или новая компенсирующая миграция.
 
 ## Примеры curl
 
 ```sh
 BASE=http://localhost:8080/api/v1
-curl -sS "$BASE/auth/register" -H 'Content-Type: application/json' \
+SITE='X-Site-Key: default'
+curl -sS "$BASE/auth/register" -H "$SITE" -H 'Content-Type: application/json' \
   -d '{"username":"alice","email":"alice@example.org","password":"example-password-2026"}'
 # Сохраните значения из ответа вручную; не добавляйте токены в репозиторий.
 ACCESS='YOUR_ACCESS_TOKEN'
 REFRESH='YOUR_REFRESH_TOKEN'
-curl "$BASE/me" -H "Authorization: Bearer $ACCESS"
-curl -i "$BASE/articles" -H "Authorization: Bearer $ACCESS" \
+curl "$BASE/me" -H "$SITE" -H "Authorization: Bearer $ACCESS"
+curl -i "$BASE/articles" -H "$SITE" -H "Authorization: Bearer $ACCESS" \
   -H 'Content-Type: application/json' \
   -d '{"title":"Первый пост","slug":"first-post","description":"Знакомство","content":"# Привет","tags":["go"],"status":"draft"}'
 # Для первого созданного ID; подставьте фактический ID и ETag:
-curl -X PATCH "$BASE/articles/1" -H "Authorization: Bearer $ACCESS" \
+curl -X PATCH "$BASE/articles/1" -H "$SITE" -H "Authorization: Bearer $ACCESS" \
   -H 'Content-Type: application/json' -H 'If-Match: "1"' -d '{"status":"published"}'
-curl "$BASE/me/articles?status=published" -H "Authorization: Bearer $ACCESS"
-curl "$BASE/me/statistics" -H "Authorization: Bearer $ACCESS"
-curl "$BASE/articles-by-slug/first-post"
+curl "$BASE/me/articles?status=published" -H "$SITE" -H "Authorization: Bearer $ACCESS"
+curl "$BASE/me/statistics" -H "$SITE" -H "Authorization: Bearer $ACCESS"
+curl "$BASE/articles-by-slug/first-post" -H "$SITE"
 # Гость: сохраняйте cookie между вызовами; повтор внутри окна counted=false.
-curl -c /tmp/blog-cookies -b /tmp/blog-cookies -X POST "$BASE/articles/1/views"
+curl -c /tmp/blog-cookies -b /tmp/blog-cookies -X POST "$BASE/articles/1/views" -H "$SITE"
 # Другой зарегистрированный пользователь:
 OTHER_ACCESS='OTHER_USER_ACCESS_TOKEN'
-curl -X PUT "$BASE/articles/1/like" -H "Authorization: Bearer $OTHER_ACCESS"
-curl "$BASE/articles/1/comments" -H "Authorization: Bearer $OTHER_ACCESS" \
+curl -X PUT "$BASE/articles/1/like" -H "$SITE" -H "Authorization: Bearer $OTHER_ACCESS"
+curl "$BASE/articles/1/comments" -H "$SITE" -H "Authorization: Bearer $OTHER_ACCESS" \
   -H 'Content-Type: application/json' -d '{"content":"Хорошая статья!"}'
-curl -X DELETE "$BASE/articles/1/like" -H "Authorization: Bearer $OTHER_ACCESS"
-curl "$BASE/auth/refresh" -H 'Content-Type: application/json' \
+curl -X DELETE "$BASE/articles/1/like" -H "$SITE" -H "Authorization: Bearer $OTHER_ACCESS"
+curl "$BASE/auth/refresh" -H "$SITE" -H 'Content-Type: application/json' \
   -d "{\"refresh_token\":\"$REFRESH\"}"
 # После refresh для выхода нужен НОВЫЙ refresh_token из ответа.
-curl "$BASE/auth/logout" -H 'Content-Type: application/json' \
+curl "$BASE/auth/logout" -H "$SITE" -H 'Content-Type: application/json' \
   -d '{"refresh_token":"NEW_REFRESH_TOKEN"}'
 ```
 
