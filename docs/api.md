@@ -34,7 +34,7 @@
 
 | Метод и путь | Доступ | Параметры и тело |
 | --- | --- | --- |
-| `POST /api/v1/auth/register` | Анонимно | JSON: `username` (3–32 символа, `a-z`, `0-9`, `_`; уникален в пределах сайта), `email` (до 254 символов; уникален в пределах сайта), `password` (12–72 байта UTF-8). Роль нового пользователя — `user`. |
+| `POST /api/v1/auth/register` | Анонимно | JSON: `username` (3–32 символа, `a-z`, `0-9`, `_`; уникален в пределах сайта), `email` (до 254 символов; уникален в пределах сайта), `password` (12–72 байта UTF-8). Роль нового пользователя — `user`: можно комментировать и ставить лайки, но не создавать статьи. |
 | `POST /api/v1/auth/login` | Анонимно | JSON: `email`, `password`. |
 | `POST /api/v1/auth/refresh` | Анонимно | JSON: `refresh_token` (непрозрачная строка длиной 43 символа). Успешный вызов ротирует токен; старый повторно использовать нельзя. |
 | `POST /api/v1/auth/logout` | Анонимно | JSON: `refresh_token`. Отзывает семейство токенов; успешный ответ `204` без тела. |
@@ -62,10 +62,10 @@ refresh-запросы.
 | Метод и путь | Доступ | Параметры и тело |
 | --- | --- | --- |
 | `GET /api/v1/articles` | Анонимно | Публичные статьи; `page`, `page_size`, `sort`, `author_id`, `tag`, `q`. |
-| `POST /api/v1/articles` | Bearer | JSON статьи (описание полей ниже). `status` по умолчанию `draft`. |
+| `POST /api/v1/articles` | Bearer, роль `author` или `admin` | JSON статьи (описание полей ниже). `status` по умолчанию `draft`. Без роли: `403`, `code: "author_role_required"`. |
 | `GET /api/v1/articles/{article_id}` | Анонимно* | `article_id` в пути. Черновик доступен только автору или администратору. |
 | `GET /api/v1/articles-by-slug/{slug}` | Анонимно* | `slug` в пути (1–200 символов). Черновик доступен только автору или администратору. |
-| `PATCH /api/v1/articles/{article_id}` | Bearer | `article_id`, обязательный `If-Match` и JSON с изменяемыми полями статьи. Только автор или администратор. |
+| `PATCH /api/v1/articles/{article_id}` | Bearer | `article_id`, обязательный `If-Match` и JSON с изменяемыми полями статьи. Только автор статьи с ролью `author` или администратор. |
 | `DELETE /api/v1/articles/{article_id}` | Bearer | `article_id` и обязательный `If-Match`. Только автор или администратор; успешный ответ `204`. |
 
 `*` Маршрут допускает анонимный доступ, но наличие Bearer-токена позволяет
@@ -124,7 +124,7 @@ refresh-запросы.
 
 Cookie `blog_visitor` создаётся сервером; вручную задавать её не нужно.
 Для запросов с другого origin в рамках одного site используйте
-`credentials: "include"` и настройте разрешённый CORS origin. Браузер может
+`credentials: "include"`. Браузер может
 блокировать cookie в cross-site сценариях.
 
 ## Теги и служебные маршруты
@@ -156,6 +156,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 Создание статьи:
 
 ```sh
+# Нужна роль author или admin, см. docs/sites.md.
 curl -X POST http://localhost:8080/api/v1/articles \
   -H 'X-Site-Key: default' \
   -H 'Authorization: Bearer <access_token>' \

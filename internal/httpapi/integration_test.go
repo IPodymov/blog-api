@@ -59,7 +59,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 	repo := &repository.Store{DB: pool}
 	s := &service.Service{Repo: repo, PublicURL: "https://blog.example", VisitorSecret: strings.Repeat("s", 32), AccessTTL: 15 * time.Minute, RefreshTTL: 24 * time.Hour, ViewInterval: 30 * time.Minute, MaxPeriod: 366}
-	c := config.Config{Origins: []string{"https://blog.example"}, SecureCookie: true}
+	c := config.Config{SecureCookie: true}
 	h := New(s, c, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	site, e := s.Site(ctx, "default")
 	if e != nil {
@@ -120,6 +120,14 @@ func TestEndToEnd(t *testing.T) {
 	expect(call("GET", "/me", "", "", ""), 401)
 	expect(call("PATCH", "/me", `{"bio":"Автор"}`, owner.Access, ""), 200)
 	input := `{"title":"Test","slug":"test-post","content":"# Hello","tags":["go"]}`
+	// A self-registered visitor cannot create articles until the operator grants the author role.
+	expect(call("POST", "/articles", input, owner.Access, ""), 403)
+	if _, e = pool.Exec(ctx, "UPDATE users SET role='author' WHERE id=$1", oa.ID); e != nil {
+		t.Fatal(e)
+	}
+	if oa, e = s.Authenticate(ctx, site, owner.Access); e != nil {
+		t.Fatal(e)
+	}
 	w = call("POST", "/articles", input, owner.Access, "")
 	expect(w, 201)
 	var article domain.Article
@@ -368,6 +376,19 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatal("admin deletion forbidden", e)
 	}
 	// Site isolation: another site sees none of the users, articles, comments, likes, tags or tokens.
+	// Losing the author role blocks edits of own articles but not their deletion.
+	revoked, e := s.CreateArticle(ctx, oa, domain.ArticleInput{Title: "Revoked", Slug: "revoked", Content: "Content", Status: "draft"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, "UPDATE users SET role='user' WHERE id=$1", oa.ID); e != nil {
+		t.Fatal(e)
+	}
+	expect(call("PATCH", fmt.Sprintf("/articles/%d", revoked.ID), `{"status":"published"}`, owner.Access, `"1"`), 403)
+	expect(call("DELETE", fmt.Sprintf("/articles/%d", revoked.ID), "", owner.Access, `"1"`), 204)
+	if _, e = pool.Exec(ctx, "UPDATE users SET role='author' WHERE id=$1", oa.ID); e != nil {
+		t.Fatal(e)
+	}
 	expect(callSite("", "GET", "/articles", "", "", ""), 400)
 	expect(callSite("missing", "GET", "/articles", "", "", ""), 400)
 	if _, e = pool.Exec(ctx, "INSERT INTO sites(key,public_url) VALUES('second','https://second.example')"); e != nil {
@@ -414,7 +435,13 @@ func TestEndToEnd(t *testing.T) {
 	expect(second("PUT", sharedPath+"/like", "", foreign.Access), 404)
 	expect(second("PATCH", fmt.Sprintf("/comments/%d", comment.ID), `{"content":"Intruder"}`, foreign.Access), 404)
 	expect(second("DELETE", fmt.Sprintf("/comments/%d", comment.ID), "", foreign.Access), 404)
-	w = second("POST", "/articles", `{"title":"Second","slug":"shared","content":"Body","status":"published"}`, foreign.Access)
+	secondBody := `{"title":"Second","slug":"shared","content":"Body","status":"published"}`
+	expect(second("POST", "/articles", secondBody, foreign.Access), 403)
+	// The role belongs to one account: the author on the first site is a visitor on the second until granted here.
+	if _, e = pool.Exec(ctx, "UPDATE users SET role='author' WHERE username='owner' AND site_id=(SELECT id FROM sites WHERE key='second')"); e != nil {
+		t.Fatal(e)
+	}
+	w = second("POST", "/articles", secondBody, foreign.Access)
 	expect(w, 201)
 	json.Unmarshal(w.Body.Bytes(), &article)
 	if article.CanonicalURL == nil || *article.CanonicalURL != "https://second.example/articles/shared" {

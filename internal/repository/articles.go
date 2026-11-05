@@ -3,8 +3,9 @@ package repository
 import (
 	"blog-api/internal/domain"
 	"context"
-	"github.com/jackc/pgx/v5"
 	"sort"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const articleSelect = `SELECT a.id,a.title,a.slug,a.description,a.content,a.status,a.version,a.created_at,a.updated_at,a.published_at,a.views,a.likes,a.comments,a.popularity,

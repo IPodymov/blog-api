@@ -9,13 +9,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"golang.org/x/crypto/bcrypt"
 	"net/mail"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
@@ -59,6 +60,15 @@ func manage(a domain.Actor, owner int64) error {
 	}
 	if !a.CanManage(owner) {
 		return domain.Fail(403, "forbidden", "Нет доступа к ресурсу")
+	}
+	return nil
+}
+func publisher(a domain.Actor) error {
+	if e := require(a); e != nil {
+		return e
+	}
+	if !a.CanPublish() {
+		return domain.Fail(403, "author_role_required", "Создавать и редактировать статьи могут только авторы")
 	}
 	return nil
 }
@@ -266,7 +276,7 @@ func (s *Service) Articles(ctx context.Context, a domain.Actor, f domain.Filter)
 	return p, e
 }
 func (s *Service) CreateArticle(ctx context.Context, a domain.Actor, in domain.ArticleInput) (domain.Article, error) {
-	if e := require(a); e != nil {
+	if e := publisher(a); e != nil {
 		return domain.Article{}, e
 	}
 	if in.Status == "" {
@@ -287,6 +297,9 @@ func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version
 		return v, e
 	}
 	if e := manage(a, v.Author.ID); e != nil {
+		return domain.Article{}, e
+	}
+	if e := publisher(a); e != nil {
 		return domain.Article{}, e
 	}
 	if v.Version != version {

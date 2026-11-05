@@ -3,8 +3,9 @@ package repository
 import (
 	"blog-api/internal/domain"
 	"context"
-	"github.com/jackc/pgx/v5"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) View(ctx context.Context, site, id, user int64, admin bool, visitor string, interval time.Duration) (bool, error) {

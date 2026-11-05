@@ -32,6 +32,7 @@ type Actor struct {
 }
 
 func (a Actor) CanManage(owner int64) bool { return a.ID != 0 && (a.ID == owner || a.Role == "admin") }
+func (a Actor) CanPublish() bool           { return a.Role == "author" || a.Role == "admin" }
 func (a Actor) CanRead(owner int64, status string) bool {
 	return status == "published" || a.CanManage(owner)
 }

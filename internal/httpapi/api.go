@@ -283,17 +283,10 @@ func (a *API) middleware(next http.Handler) http.Handler {
 		}()
 		origin := r.Header.Get("Origin")
 		if origin != "" {
-			allowed := false
-			for _, v := range a.Config.Origins {
-				if v == origin {
-					allowed = true
-				}
-			}
+			// Any origin may call the API: the client picks its site with X-Site-Key and
+			// authenticates with a bearer token. The origin is echoed because browsers reject
+			// "*" on credentialed requests, which the blog_visitor cookie needs.
 			w.Header().Add("Vary", "Origin")
-			if !allowed {
-				a.respond(w, r, nil, domain.Fail(403, "origin_forbidden", "Origin не разрешён"), 0)
-				return
-			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Expose-Headers", "ETag,X-Request-ID,Retry-After")

@@ -1000,7 +1000,7 @@
           "Articles"
         ],
         "summary": "Создать статью",
-        "description": "Создать статью",
+        "description": "Только роли author и admin; остальные получают 403 с кодом author_role_required.",
         "parameters": [
           {
             "$ref": "#/components/parameters/SiteKey"
@@ -1227,7 +1227,7 @@
           "Articles"
         ],
         "summary": "Изменить статью",
-        "description": "Автор либо администратор. Проверка версии атомарна. Снятие публикации сохраняет просмотры, лайки и комментарии для личной аналитики; из публичной статистики статья исчезает.",
+        "description": "Автор статьи с ролью author либо администратор. Проверка версии атомарна. Снятие публикации сохраняет просмотры, лайки и комментарии для личной аналитики; из публичной статистики статья исчезает.",
         "parameters": [
           {
             "$ref": "#/components/parameters/SiteKey"
@@ -1563,7 +1563,7 @@
             "name": "blog_visitor",
             "in": "cookie",
             "required": false,
-            "description": "Не задавайте вручную. Сервер выдаёт подписанный непрозрачный cookie: HttpOnly, SameSite=Lax, Path=/api/v1, Max-Age=31536000, Secure по конфигурации (true в production). Cross-origin same-site клиент использует credentials: include и разрешённый CORS origin. Cross-site cookie может блокироваться; такой хостинг не поддерживает точную гостевую дедупликацию. Удаление cookie и смена браузера создают нового посетителя. Первые параллельные запросы без cookie также могут посчитаться отдельно.",
+            "description": "Не задавайте вручную. Сервер выдаёт подписанный непрозрачный cookie: HttpOnly, SameSite=Lax, Path=/api/v1, Max-Age=31536000, Secure по конфигурации (true в production). Cross-origin same-site клиент использует credentials: include. Cross-site cookie может блокироваться; такой хостинг не поддерживает точную гостевую дедупликацию. Удаление cookie и смена браузера создают нового посетителя. Первые параллельные запросы без cookie также могут посчитаться отдельно.",
             "schema": {
               "type": "string",
               "minLength": 0
@@ -2600,6 +2600,7 @@
             "minLength": 0,
             "enum": [
               "user",
+              "author",
               "admin"
             ]
           }
@@ -3813,7 +3814,7 @@
         }
       },
       "E403": {
-        "description": "Недостаточно прав или Origin не разрешён.",
+        "description": "Недостаточно прав.",
         "content": {
           "application/json": {
             "schema": {
@@ -3822,7 +3823,7 @@
             "example": {
               "error": {
                 "code": "request_failed",
-                "message": "Недостаточно прав или Origin не разрешён.",
+                "message": "Недостаточно прав.",
                 "details": null,
                 "request_id": "request-example"
               }

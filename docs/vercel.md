@@ -30,7 +30,6 @@
 | `CRON_SECRET`           | Отдельный случайный секрет Vercel Cron                       |
 | `COOKIE_SECURE`         | `true`                                                       |
 | `PUBLIC_SITE_URL`       | Адрес для сайтов с пустым `public_url`; пока сайта нет — API |
-| `CORS_ORIGINS`          | Origins всех сайтов через запятую, без пути/завершающего `/` |
 | `ACCESS_TTL`            | `15m`                                                        |
 | `REFRESH_TTL`           | `720h`                                                       |
 | `VIEW_INTERVAL`         | `30m`                                                        |
@@ -61,6 +60,10 @@ npx vercel@63.1.2 deploy --prod --scope ipodymovs-projects
 миграции: используйте совместимые добавочные изменения схемы. Откат Vercel
 не откатывает PostgreSQL.
 
+При первом деплое с ролями сразу назначьте `author` нужным аккаунтам, иначе они
+не смогут создавать и редактировать статьи ([docs/sites.md](sites.md#обновление-до-ролей)).
+Переменная `CORS_ORIGINS` больше не используется, её можно удалить из настроек проекта.
+
 ## CI/CD
 
 - CI: `.github/workflows/ci.yml` на каждый push в `main` и pull request запускает
@@ -84,8 +87,8 @@ Go-пул ограничен пятью соединениями на экзем
 при `VERCEL=1`; локальный сервер игнорирует такие заголовки.
 
 Для гостевых cookie размещайте сайт и API на одном site или за same-origin proxy:
-cookie имеет `SameSite=Lax`. При добавлении сайта создайте запись в `sites`,
-обновите `CORS_ORIGINS` и выполните новый деплой ([docs/sites.md](sites.md)). API не реализует HTML-страницы статей.
+cookie имеет `SameSite=Lax`. При добавлении сайта создайте запись в `sites`
+([docs/sites.md](sites.md)); новый деплой не нужен. API не реализует HTML-страницы статей.
 
 Официальная документация: [Go runtime](https://vercel.com/docs/functions/runtimes/go),
 [Cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs),
