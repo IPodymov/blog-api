@@ -2,9 +2,26 @@ package service
 
 import (
 	"blog-api/internal/domain"
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestPublishRequiresAuthorRole(t *testing.T) {
+	for _, tc := range []struct {
+		a      domain.Actor
+		status int
+	}{{domain.Actor{}, 401}, {domain.Actor{ID: 1, Role: "user"}, 403}, {domain.Actor{ID: 1, Role: "author"}, 0}, {domain.Actor{ID: 1, Role: "admin"}, 0}} {
+		status := 0
+		var de *domain.Error
+		if e := publisher(tc.a); errors.As(e, &de) {
+			status = de.Status
+		}
+		if status != tc.status {
+			t.Errorf("%+v: got %d, want %d", tc.a, status, tc.status)
+		}
+	}
+}
 
 func TestArticleValidation(t *testing.T) {
 	valid := domain.ArticleInput{Title: "Заголовок", Slug: "hello-world", Content: "# Content", Status: "draft", Tags: []string{"go"}}

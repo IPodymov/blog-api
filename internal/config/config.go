@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -27,7 +26,7 @@ func Load() (Config, error) {
 	if err := LoadLocalEnv(); err != nil {
 		return Config{}, err
 	}
-	c := Config{DatabaseURL: os.Getenv("DATABASE_URL"), Addr: env("HTTP_ADDR", ":"+env("PORT", "8080")), PublicURL: env("PUBLIC_SITE_URL", "http://localhost:3000"), VisitorSecret: os.Getenv("VISITOR_SECRET"), Origins: strings.Split(env("CORS_ORIGINS", "http://localhost:3000"), ","), MaxPeriod: 366}
+	c := Config{DatabaseURL: os.Getenv("DATABASE_URL"), Addr: env("HTTP_ADDR", ":"+env("PORT", "8080")), PublicURL: env("PUBLIC_SITE_URL", "http://localhost:3000"), VisitorSecret: os.Getenv("VISITOR_SECRET"), MaxPeriod: 366}
 	if c.DatabaseURL == "" || len(c.VisitorSecret) < 32 {
 		return c, fmt.Errorf("DATABASE_URL and VISITOR_SECRET (>=32 bytes) required")
 	}
@@ -55,13 +54,6 @@ func Load() (Config, error) {
 	c.MaxPeriod, e = strconv.Atoi(env("MAX_STATISTICS_DAYS", "366"))
 	if e != nil || c.MaxPeriod < 30 || c.MaxPeriod > 3660 {
 		return c, fmt.Errorf("invalid MAX_STATISTICS_DAYS")
-	}
-	for i, o := range c.Origins {
-		c.Origins[i] = strings.TrimSpace(o)
-		u, e := url.Parse(c.Origins[i])
-		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-			return c, fmt.Errorf("invalid CORS origin")
-		}
 	}
 	return c, nil
 }

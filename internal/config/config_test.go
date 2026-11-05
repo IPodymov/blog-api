@@ -7,7 +7,6 @@ func TestHostingPort(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://unused")
 	t.Setenv("VISITOR_SECRET", "01234567890123456789012345678901")
 	t.Setenv("PUBLIC_SITE_URL", "https://example.org")
-	t.Setenv("CORS_ORIGINS", "https://example.org")
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("PORT", "4567")
 	c, err := Load()

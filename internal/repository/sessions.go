@@ -3,8 +3,9 @@ package repository
 import (
 	"blog-api/internal/domain"
 	"context"
-	"github.com/jackc/pgx/v5"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) NewSession(ctx context.Context, user int64, family, access, refresh string, at, rt time.Time) error {
