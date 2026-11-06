@@ -4,7 +4,7 @@
   "info": {
     "title": "Multi-user Blog API",
     "version": "1.0.0",
-    "description": "Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. Мультисайтовость: каждый запрос к /api/v1 обязан содержать заголовок X-Site-Key. Пользователи, статьи, комментарии, лайки, теги, статистика и токены изолированы по сайтам; ID чужого сайта дают 404, токен чужого сайта — 401. На любом маршруте /api/v1 может быть 401, если передан невалидный Authorization."
+    "description": "Модульный монолит Go/PostgreSQL. Даты UTC, int64 ID. Все ошибки имеют request_id. Bearer access-токены и refresh в JSON; cookie не используется для авторизации. Общий лимит 300 запросов/мин, auth 10, views 60 на сетевой адрес. Тело до 512 KiB. Неизвестные поля тела запрещены. PATCH null запрещён. offset pagination с лимитом 100. Счётчики обновляются синхронно после commit. Не хранится историческая динамика лайков/комментариев. Нет метрики уникальных посетителей. Мультисайтовость: каждый запрос к /api/v1 обязан содержать заголовок X-Site-Key. Пользователи, статьи, комментарии, лайки, теги, статистика и токены изолированы по сайтам; ID чужого сайта дают 404, токен чужого сайта — 401. На любом маршруте /api/v1 может быть 401, если передан невалидный Authorization. Глобальный администратор работает через /api/admin/v1 без X-Site-Key: сайт указывается в пути."
   },
   "servers": [
     {
@@ -48,6 +48,10 @@
     {
       "name": "Operations",
       "description": "Operations operations"
+    },
+    {
+      "name": "Admin",
+      "description": "Глобальный администратор платформы (CRM): сайты, пользователи, статьи, приглашения"
     }
   ],
   "paths": {
@@ -58,7 +62,7 @@
           "Auth"
         ],
         "summary": "Регистрация пользователя",
-        "description": "Роль всегда user. Возвращает токены только в этом приватном ответе. Rate limit всех auth: 10 запросов/мин на сетевой адрес.",
+        "description": "Роль user; с invite_token — роль из приглашения глобального администратора (неверный, использованный, истёкший или чужой токен — 422). Возвращает токены только в этом приватном ответе. Rate limit всех auth: 10 запросов/мин на сетевой адрес.",
         "parameters": [
           {
             "$ref": "#/components/parameters/SiteKey"
@@ -2498,6 +2502,1498 @@
           }
         }
       }
+    },
+    "/api/admin/v1/auth/login": {
+      "post": {
+        "operationId": "adminLogin",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Вход глобального администратора",
+        "description": "Глобальный администратор не принадлежит ни одному сайту; X-Site-Key не нужен. Токен живёт 12 часов, refresh нет — CRM входит заново. Первого администратора создаёт оператор командой `go run ./cmd/admin create -email ...`. Rate limit: 10 запросов/мин.",
+        "parameters": [],
+        "security": [
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminToken"
+                },
+                "example": {
+                  "access_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "token_type": "Bearer",
+                  "expires_in": 43200
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              },
+              "example": {
+                "email": "admin@example.org",
+                "password": "example-password-2026"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/auth/logout": {
+      "post": {
+        "operationId": "adminLogout",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Выход администратора",
+        "description": "Отзывает текущий токен администратора.",
+        "parameters": [],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно, без тела."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/me": {
+      "get": {
+        "operationId": "adminMe",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Текущий администратор",
+        "description": "",
+        "parameters": [],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Admin"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites": {
+      "get": {
+        "operationId": "adminListSites",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Список сайтов",
+        "description": "Все сайты платформы по возрастанию ID.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        }
+      },
+      "post": {
+        "operationId": "adminCreateSite",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Создать сайт",
+        "description": "Ключ становится значением X-Site-Key; изменить его нельзя. Пустой public_url — используется PUBLIC_SITE_URL.",
+        "parameters": [],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteInput"
+              },
+              "example": {
+                "key": "med-assistant",
+                "name": "Медицинский помощник",
+                "public_url": "https://med.example.org"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}": {
+      "get": {
+        "operationId": "adminGetSite",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Сайт",
+        "description": "",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "adminUpdateSite",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Изменить сайт",
+        "description": "Меняет название и public_url; canonical_url статей сразу строится по новому адресу.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SitePatch"
+              },
+              "example": {
+                "public_url": "https://med.example.org"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/users": {
+      "get": {
+        "operationId": "adminListUsers",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Пользователи сайта",
+        "description": "С email и ролью. q ищет подстроку в username, email и display_name.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/Role"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        }
+      },
+      "post": {
+        "operationId": "adminCreateUser",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Создать пользователя",
+        "description": "Создаёт аккаунт сайта с любой ролью (по умолчанию user). Пользователь входит через /api/v1/auth/login с X-Site-Key этого сайта.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserInput"
+              },
+              "example": {
+                "username": "editor",
+                "email": "editor@example.org",
+                "password": "example-password-2026",
+                "role": "author",
+                "display_name": "Редактор"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/users/{user_id}": {
+      "get": {
+        "operationId": "adminGetUser",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Пользователь сайта",
+        "description": "",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "ID пользователя сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "adminUpdateUser",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Изменить пользователя",
+        "description": "Профиль, роль и пароль. Новая роль действует сразу; новый пароль отзывает все сессии пользователя.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "ID пользователя сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              },
+              "example": {
+                "role": "author"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "adminDeleteUser",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Удалить пользователя",
+        "description": "Удаляет аккаунт вместе с его статьями, комментариями, лайками и сессиями. Необратимо.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "ID пользователя сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно, без тела."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/articles": {
+      "get": {
+        "operationId": "adminListArticles",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Статьи сайта",
+        "description": "Статьи всех авторов, включая черновики. author_id и status фильтруют выдачу.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          },
+          {
+            "$ref": "#/components/parameters/Status"
+          },
+          {
+            "$ref": "#/components/parameters/Tag"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/Author"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        }
+      },
+      "post": {
+        "operationId": "adminCreateArticle",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Создать статью от имени пользователя",
+        "description": "author_id — любой пользователь этого сайта, независимо от роли.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminArticleInput"
+              },
+              "example": {
+                "author_id": 2,
+                "title": "Первый пост",
+                "slug": "first-post",
+                "description": "Краткое описание",
+                "content": "# Привет",
+                "tags": [
+                  "health"
+                ],
+                "status": "published"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/articles/{article_id}": {
+      "get": {
+        "operationId": "adminGetArticle",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Статья сайта",
+        "description": "Любая статья, включая черновики. Возвращает ETag.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "ID статьи сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "adminUpdateArticle",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Изменить любую статью",
+        "description": "Автор не меняется. Требует If-Match.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "ID статьи сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "412": {
+            "$ref": "#/components/responses/E412"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          },
+          "428": {
+            "$ref": "#/components/responses/E428"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticlePatch"
+              },
+              "example": {
+                "status": "published"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "adminDeleteArticle",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Удалить любую статью",
+        "description": "Требует If-Match.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "description": "ID статьи сайта.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно, без тела."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "412": {
+            "$ref": "#/components/responses/E412"
+          },
+          "428": {
+            "$ref": "#/components/responses/E428"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/invites": {
+      "get": {
+        "operationId": "adminListInvites",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Приглашения сайта",
+        "description": "Новые первыми. Токен в списке не возвращается.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        }
+      },
+      "post": {
+        "operationId": "adminCreateInvite",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Создать приглашение",
+        "description": "Возвращает token один раз; в БД хранится только SHA-256. CRM строит из него ссылку на страницу регистрации сайта, а фронт передаёт token в /api/v1/auth/register как invite_token. Приглашение одноразовое; если указан email, зарегистрироваться можно только с ним.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "415": {
+            "$ref": "#/components/responses/E415"
+          },
+          "422": {
+            "$ref": "#/components/responses/E422"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteInput"
+              },
+              "example": {
+                "role": "author",
+                "email": "editor@example.org",
+                "expires_in_hours": 72
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/sites/{site_key}/invites/{invite_id}": {
+      "delete": {
+        "operationId": "adminDeleteInvite",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Отозвать приглашение",
+        "description": "Удаляет приглашение; неиспользованная ссылка перестаёт работать. Аккаунт, уже созданный по нему, остаётся.",
+        "parameters": [
+          {
+            "name": "site_key",
+            "in": "path",
+            "required": true,
+            "description": "Ключ сайта (тот же, что X-Site-Key).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "med-assistant"
+            }
+          },
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "description": "ID приглашения.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "adminAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Успешно, без тела."
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      }
+    },
+    "/api/v1/invites/{token}": {
+      "get": {
+        "operationId": "getInvite",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Проверить приглашение",
+        "description": "Для страницы регистрации: показывает роль и email приглашения, пока оно действует. Использованное, истёкшее, отозванное или чужого сайта — 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteKey"
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "Токен из ссылки-приглашения.",
+            "schema": {
+              "type": "string",
+              "minLength": 43,
+              "maxLength": 43
+            }
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "405": {
+            "$ref": "#/components/responses/E405"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "500": {
+            "$ref": "#/components/responses/E500"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3148,6 +4644,12 @@
             "description": "12..72 байта UTF-8, bcrypt cost 12.",
             "example": "example-password-2026",
             "maxLength": 72
+          },
+          "invite_token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "description": "Токен приглашения: пользователь получает роль из приглашения, приглашение расходуется."
           }
         },
         "required": [
@@ -3617,6 +5119,538 @@
           "page_size",
           "total"
         ]
+      },
+      "Admin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "editor@example.org",
+            "maxLength": 254
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "created_at"
+        ]
+      },
+      "AdminToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "token_type": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in"
+        ]
+      },
+      "Site": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "med-assistant"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 200,
+            "example": "Медицинский помощник"
+          },
+          "public_url": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2048,
+            "example": "https://med.example.org"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "public_url",
+          "created_at"
+        ]
+      },
+      "SiteInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "med-assistant"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 200,
+            "example": "Медицинский помощник"
+          },
+          "public_url": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2048,
+            "example": "https://med.example.org"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "SitePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 200,
+            "example": "Медицинский помощник"
+          },
+          "public_url": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2048,
+            "example": "https://med.example.org"
+          }
+        },
+        "required": [],
+        "minProperties": 1
+      },
+      "SitePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Site"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "UserInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "pattern": "^[a-z0-9_]{3,32}$",
+            "example": "alice",
+            "maxLength": 32
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "editor@example.org",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "writeOnly": true,
+            "description": "12..72 байта UTF-8, bcrypt cost 12.",
+            "example": "example-password-2026",
+            "maxLength": 72
+          },
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "author",
+              "admin"
+            ],
+            "default": "user"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Алиса",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "password"
+        ]
+      },
+      "UserPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Алиса",
+            "maxLength": 100
+          },
+          "avatar_url": {
+            "type": "string",
+            "minLength": 0,
+            "example": "https://example.org/avatar.png",
+            "maxLength": 2048
+          },
+          "bio": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "author",
+              "admin"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "writeOnly": true,
+            "description": "12..72 байта UTF-8, bcrypt cost 12.",
+            "example": "example-password-2026",
+            "maxLength": 72
+          }
+        },
+        "required": [],
+        "minProperties": 1
+      },
+      "UserPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnUser"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "AdminArticleInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "author_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Пользователь этого сайта, от имени которого создаётся статья."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Первый пост",
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "example": "first-post",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 0,
+            "example": "Краткое описание",
+            "maxLength": 500
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Markdown; клиент отключает raw HTML и очищает результат перед отображением.",
+            "example": "# Привет\nМой первый пост.",
+            "maxLength": 100000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "maxLength": 40
+            },
+            "maxItems": 10
+          },
+          "status": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "draft",
+              "published"
+            ],
+            "default": "draft"
+          }
+        },
+        "required": [
+          "author_id",
+          "title",
+          "slug",
+          "content"
+        ]
+      },
+      "Invite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "author",
+              "admin"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          },
+          "used_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "description": "Только в ответе на создание."
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "email",
+          "created_at",
+          "expires_at",
+          "used_by",
+          "used_at"
+        ]
+      },
+      "InviteInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "author",
+              "admin"
+            ],
+            "default": "author"
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "format": "email",
+            "example": "editor@example.org",
+            "maxLength": 254,
+            "description": "Если указан, зарегистрироваться можно только с этим email."
+          },
+          "expires_in_hours": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 720,
+            "default": 72
+          }
+        },
+        "required": []
+      },
+      "InvitePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invite"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "InvitePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "minLength": 0,
+            "enum": [
+              "user",
+              "author",
+              "admin"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "expires_at": {
+            "type": "string",
+            "minLength": 0,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "role",
+          "email",
+          "expires_at"
+        ]
       }
     },
     "parameters": {
@@ -3624,7 +5658,7 @@
         "name": "X-Site-Key",
         "in": "header",
         "required": true,
-        "description": "Ключ сайта, к которому относится запрос. Все данные (пользователи, статьи, комментарии, лайки, теги, статистика) и токены изолированы по сайтам. Отсутствие ключа: 400 site_required; неизвестный ключ: 400 unknown_site. Сайты создаёт оператор БД.",
+        "description": "Ключ сайта, к которому относится запрос. Все данные (пользователи, статьи, комментарии, лайки, теги, статистика) и токены изолированы по сайтам. Отсутствие ключа: 400 site_required; неизвестный ключ: 400 unknown_site. Сайты создаёт глобальный администратор через /api/admin/v1/sites.",
         "schema": {
           "type": "string",
           "minLength": 1,
@@ -3772,6 +5806,21 @@
           "enum": [
             "draft",
             "published"
+          ]
+        }
+      },
+      "Role": {
+        "name": "role",
+        "in": "query",
+        "required": false,
+        "description": "Фильтр по роли.",
+        "schema": {
+          "type": "string",
+          "minLength": 0,
+          "enum": [
+            "user",
+            "author",
+            "admin"
           ]
         }
       }
@@ -4044,6 +6093,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Непрозрачный 256-битный access-токен, TTL по умолчанию 15 минут; БД хранит только SHA-256. Токен действует только на сайте (X-Site-Key), на котором выдан."
+      },
+      "adminAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Токен глобального администратора из /api/admin/v1/auth/login, TTL 12 часов; БД хранит только SHA-256. Не действует на /api/v1, а токены сайтов не действуют на /api/admin/v1."
       }
     }
   }

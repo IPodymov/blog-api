@@ -140,6 +140,7 @@ type Filter struct {
 	Author                    int64
 	Status, Tag, Search, Sort string
 	Own                       bool
+	Role                      string
 	From, To                  time.Time
 }
 type Day struct {
@@ -195,4 +196,69 @@ type ArticleStatistics struct {
 	DateTo      string `json:"date_to"`
 	Timezone    string `json:"timezone"`
 	Daily       []Day  `json:"daily"`
+}
+
+// Admin is a platform-wide account: it belongs to no site and manages all of them.
+type Admin struct {
+	ID        int64     `json:"id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+type AdminToken struct {
+	Access    string `json:"access_token"`
+	TokenType string `json:"token_type"`
+	ExpiresIn int64  `json:"expires_in"`
+}
+type SiteInfo struct {
+	ID        int64     `json:"id"`
+	Key       string    `json:"key"`
+	Name      string    `json:"name"`
+	PublicURL string    `json:"public_url"`
+	CreatedAt time.Time `json:"created_at"`
+}
+type SiteInput struct {
+	Key       string `json:"key"`
+	Name      string `json:"name"`
+	PublicURL string `json:"public_url"`
+}
+type SitePatch struct {
+	Name      *string `json:"name"`
+	PublicURL *string `json:"public_url"`
+}
+type UserInput struct {
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+	DisplayName string `json:"display_name"`
+}
+type UserPatch struct {
+	ProfilePatch
+	Role     *string `json:"role"`
+	Password *string `json:"password"`
+}
+type AdminArticleInput struct {
+	ArticleInput
+	AuthorID int64 `json:"author_id"`
+}
+type Invite struct {
+	ID        int64      `json:"id"`
+	Role      string     `json:"role"`
+	Email     *string    `json:"email"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedBy    *int64     `json:"used_by"`
+	UsedAt    *time.Time `json:"used_at"`
+	// Token is returned once, in the creation response; only its hash is stored.
+	Token string `json:"token,omitempty"`
+}
+type InviteInput struct {
+	Role           string `json:"role"`
+	Email          string `json:"email"`
+	ExpiresInHours int    `json:"expires_in_hours"`
+}
+type InvitePreview struct {
+	Role      string    `json:"role"`
+	Email     *string   `json:"email"`
+	ExpiresAt time.Time `json:"expires_at"`
 }

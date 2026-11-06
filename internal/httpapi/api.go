@@ -19,8 +19,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ctxKey int
@@ -28,6 +30,7 @@ type ctxKey int
 const (
 	actorKey ctxKey = iota
 	requestKey
+	adminKey
 )
 
 type API struct {
@@ -82,6 +85,7 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 		r.Post("/auth/login", a.login)
 		r.Post("/auth/refresh", a.refresh)
 		r.Post("/auth/logout", a.logout)
+		r.Get("/invites/{token}", a.invite)
 		r.Get("/users/{user_id}", a.profile)
 		r.Get("/users/{user_id}/articles", a.userArticles)
 		r.Get("/me", a.me)
@@ -105,6 +109,7 @@ func New(s *service.Service, c config.Config, l *slog.Logger) http.Handler {
 		r.Delete("/articles/{article_id}/like", a.unlike)
 		r.Get("/tags", a.tags)
 	})
+	r.Route("/api/admin/v1", a.adminRoutes)
 	return r
 }
 func actor(r *http.Request) domain.Actor {
@@ -115,7 +120,13 @@ func (a *API) respond(w http.ResponseWriter, r *http.Request, v any, e error, st
 	if e != nil {
 		de := &domain.Error{Status: 500, Code: "internal_error", Message: "Внутренняя ошибка сервера"}
 		if !errors.As(e, &de) {
-			a.Log.Error("request failed", "request_id", r.Context().Value(requestKey), "error_type", fmt.Sprintf("%T", e))
+			// SQLSTATE identifies the failure class without logging query parameters.
+			var pe *pgconn.PgError
+			sqlstate := ""
+			if errors.As(e, &pe) {
+				sqlstate = pe.Code
+			}
+			a.Log.Error("request failed", "request_id", r.Context().Value(requestKey), "error_type", fmt.Sprintf("%T", e), "sqlstate", sqlstate)
 		}
 		status = de.Status
 		v = map[string]any{"error": map[string]any{"code": de.Code, "message": de.Message, "details": de.Details, "request_id": r.Context().Value(requestKey)}}
@@ -219,6 +230,12 @@ func filter(r *http.Request, stats bool) (domain.Filter, error) {
 	}
 	if len(f.Tag) > 40 {
 		return f, domain.Invalid("tag", "Максимум 40 байт")
+	}
+	// PostgreSQL rejects invalid UTF-8 and NUL in text parameters, which would surface as a 500.
+	for k, v := range map[string]string{"q": f.Search, "tag": f.Tag} {
+		if !utf8.ValidString(v) || strings.ContainsRune(v, 0) {
+			return f, domain.Invalid(k, "Некорректная строка")
+		}
 	}
 	if f.Status != "" && f.Status != "draft" && f.Status != "published" {
 		return f, domain.Invalid("status", "draft или published")

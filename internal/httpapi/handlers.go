@@ -17,6 +17,7 @@ type registration struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Invite   string `json:"invite_token"`
 }
 type refreshRequest struct {
 	Refresh string `json:"refresh_token"`
@@ -29,7 +30,7 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 		a.respond(w, r, nil, e, 0)
 		return
 	}
-	v, e := a.Service.Register(r.Context(), actor(r).Site, b.Username, b.Email, b.Password)
+	v, e := a.Service.Register(r.Context(), actor(r).Site, b.Username, b.Email, b.Password, b.Invite)
 	a.respond(w, r, v, e, 201)
 }
 func (a *API) login(w http.ResponseWriter, r *http.Request) {
@@ -295,5 +296,9 @@ func (a *API) tags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, e := a.Service.Repo.Tags(r.Context(), actor(r).Site.ID, f)
+	a.respond(w, r, v, e, 200)
+}
+func (a *API) invite(w http.ResponseWriter, r *http.Request) {
+	v, e := a.Service.InvitePreview(r.Context(), actor(r).Site, chi.URLParam(r, "token"))
 	a.respond(w, r, v, e, 200)
 }

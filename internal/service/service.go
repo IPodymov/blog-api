@@ -138,35 +138,55 @@ func Canonical(site domain.Site, a domain.Article) domain.Article {
 	}
 	return a
 }
-func (s *Service) Register(ctx context.Context, site domain.Site, username, email, password string) (domain.Tokens, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+func Email(raw string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(raw))
+	m, e := mail.ParseAddress(email)
+	if e != nil || m.Address != email || len(email) > 254 {
+		return "", domain.Invalid("email", "Некорректный email")
+	}
+	return email, nil
+}
+
+// HashPassword enforces the account password policy before hashing.
+func HashPassword(password string) (string, error) {
+	if len(password) < 12 || len(password) > 72 {
+		return "", domain.Invalid("password", "12..72 байта")
+	}
+	hash, e := bcrypt.GenerateFromPassword([]byte(password), 12)
+	return string(hash), e
+}
+
+// Register creates a site account; an invite token sets the role chosen by the platform admin.
+func (s *Service) Register(ctx context.Context, site domain.Site, username, email, password, invite string) (domain.Tokens, error) {
 	if !usernameRE.MatchString(username) {
 		return domain.Tokens{}, domain.Invalid("username", "Формат [a-z0-9_], 3..32")
 	}
-	m, e := mail.ParseAddress(email)
-	if e != nil || m.Address != email || len(email) > 254 {
-		return domain.Tokens{}, domain.Invalid("email", "Некорректный email")
-	}
-	if len(password) < 12 || len(password) > 72 {
-		return domain.Tokens{}, domain.Invalid("password", "12..72 байта")
-	}
-	hash, e := bcrypt.GenerateFromPassword([]byte(password), 12)
+	email, e := Email(email)
 	if e != nil {
 		return domain.Tokens{}, e
 	}
+	if invite != "" && len(invite) != 43 {
+		return domain.Tokens{}, domain.Invalid("invite_token", "Приглашение недействительно, использовано или истекло")
+	}
+	hash, e := HashPassword(password)
+	if e != nil {
+		return domain.Tokens{}, e
+	}
+	if invite != "" {
+		invite = Hash(invite)
+	}
 	tokens := s.tokenPair()
 	now := time.Now()
-	e = s.Repo.Register(ctx, site.ID, username, email, string(hash), Random(), Hash(tokens.Access), Hash(tokens.Refresh), now.Add(s.AccessTTL), now.Add(s.RefreshTTL))
+	e = s.Repo.Register(ctx, site.ID, username, email, hash, invite, Random(), Hash(tokens.Access), Hash(tokens.Refresh), now.Add(s.AccessTTL), now.Add(s.RefreshTTL))
 	return tokens, e
 }
 
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("constant-dummy-password"), 12)
 
 func (s *Service) Login(ctx context.Context, site domain.Site, email, password string) (domain.Tokens, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	address, parseErr := mail.ParseAddress(email)
-	if parseErr != nil || address.Address != email || len(email) > 254 {
-		return domain.Tokens{}, domain.Invalid("email", "Некорректный email")
+	email, e := Email(email)
+	if e != nil {
+		return domain.Tokens{}, e
 	}
 	if len(password) < 1 || len(password) > 72 {
 		return domain.Tokens{}, domain.Invalid("password", "1..72 байта")
@@ -226,25 +246,31 @@ func (s *Service) Me(ctx context.Context, a domain.Actor) (domain.OwnUser, error
 	}
 	return s.Repo.User(ctx, a.Site.ID, a.ID)
 }
-func (s *Service) UpdateProfile(ctx context.Context, a domain.Actor, p domain.ProfilePatch) (domain.OwnUser, error) {
-	if e := require(a); e != nil {
-		return domain.OwnUser{}, e
-	}
+func validateProfile(p domain.ProfilePatch) error {
 	if p.DisplayName != nil {
 		if e := text("display_name", *p.DisplayName, 0, 100); e != nil {
-			return domain.OwnUser{}, e
+			return e
 		}
 	}
 	if p.Bio != nil {
 		if e := text("bio", *p.Bio, 0, 2000); e != nil {
-			return domain.OwnUser{}, e
+			return e
 		}
 	}
 	if p.AvatarURL != nil && *p.AvatarURL != "" {
 		u, e := url.Parse(*p.AvatarURL)
 		if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || len(*p.AvatarURL) > 2048 {
-			return domain.OwnUser{}, domain.Invalid("avatar_url", "Ожидается HTTPS URL либо пустая строка")
+			return domain.Invalid("avatar_url", "Ожидается HTTPS URL либо пустая строка")
 		}
+	}
+	return nil
+}
+func (s *Service) UpdateProfile(ctx context.Context, a domain.Actor, p domain.ProfilePatch) (domain.OwnUser, error) {
+	if e := require(a); e != nil {
+		return domain.OwnUser{}, e
+	}
+	if e := validateProfile(p); e != nil {
+		return domain.OwnUser{}, e
 	}
 	return s.Repo.UpdateUser(ctx, a.Site.ID, a.ID, p)
 }
@@ -259,6 +285,10 @@ func (s *Service) Article(ctx context.Context, a domain.Actor, id int64) (domain
 	return Canonical(a.Site, v), nil
 }
 func (s *Service) Slug(ctx context.Context, a domain.Actor, slug string) (domain.Article, error) {
+	// A malformed slug cannot exist; PostgreSQL would also reject invalid UTF-8 or NUL with a 500.
+	if len(slug) > 200 || !slugRE.MatchString(slug) {
+		return domain.Article{}, domain.Fail(404, "not_found", "Статья не найдена")
+	}
 	v, e := s.Repo.BySlug(ctx, a.Site.ID, slug, a.ID)
 	return Canonical(a.Site, v), e
 }
@@ -291,20 +321,9 @@ func (s *Service) CreateArticle(ctx context.Context, a domain.Actor, in domain.A
 	v, e := s.Repo.CreateArticle(ctx, a.Site.ID, a.ID, in)
 	return Canonical(a.Site, v), e
 }
-func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version int64, p domain.ArticlePatch) (domain.Article, error) {
-	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
-	if e != nil {
-		return v, e
-	}
-	if e := manage(a, v.Author.ID); e != nil {
-		return domain.Article{}, e
-	}
-	if e := publisher(a); e != nil {
-		return domain.Article{}, e
-	}
-	if v.Version != version {
-		return domain.Article{}, domain.Fail(412, "version_conflict", "Версия статьи изменилась")
-	}
+
+// mergeArticle applies a PATCH body on top of the stored article.
+func mergeArticle(v domain.Article, p domain.ArticlePatch) domain.ArticleInput {
 	in := domain.ArticleInput{Title: v.Title, Slug: v.Slug, Description: v.Description, Content: v.Content, Tags: v.Tags, Status: v.Status}
 	if p.Title != nil {
 		in.Title = *p.Title
@@ -324,6 +343,23 @@ func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version
 	if p.Status != nil {
 		in.Status = *p.Status
 	}
+	return in
+}
+func (s *Service) UpdateArticle(ctx context.Context, a domain.Actor, id, version int64, p domain.ArticlePatch) (domain.Article, error) {
+	v, e := s.Repo.Article(ctx, a.Site.ID, id, a.ID)
+	if e != nil {
+		return v, e
+	}
+	if e := manage(a, v.Author.ID); e != nil {
+		return domain.Article{}, e
+	}
+	if e := publisher(a); e != nil {
+		return domain.Article{}, e
+	}
+	if v.Version != version {
+		return domain.Article{}, domain.Fail(412, "version_conflict", "Версия статьи изменилась")
+	}
+	in := mergeArticle(v, p)
 	if e := ValidateArticle(in); e != nil {
 		return domain.Article{}, e
 	}

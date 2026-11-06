@@ -74,11 +74,32 @@ func (s *Store) Logout(ctx context.Context, site int64, hash string) error {
 }
 
 // Register commits the account and its first session atomically.
-func (s *Store) Register(ctx context.Context, site int64, username, email, passwordHash, family, access, refresh string, at, rt time.Time) error {
+// A non-empty invite hash grants the invite's role and consumes the invite in the same transaction.
+func (s *Store) Register(ctx context.Context, site int64, username, email, passwordHash, invite, family, access, refresh string, at, rt time.Time) error {
 	return s.Tx(ctx, func(tx pgx.Tx) error {
+		role := "user"
+		var inviteID int64
+		if invite != "" {
+			var only *string
+			e := tx.QueryRow(ctx, "SELECT id,role,email FROM invites WHERE token_hash=$1 AND site_id=$2 AND used_at IS NULL AND expires_at>now() FOR UPDATE", invite, site).Scan(&inviteID, &role, &only)
+			if e == pgx.ErrNoRows {
+				return domain.Invalid("invite_token", "Приглашение недействительно, использовано или истекло")
+			}
+			if e != nil {
+				return e
+			}
+			if only != nil && *only != email {
+				return domain.Invalid("email", "Приглашение выдано на другой email")
+			}
+		}
 		var id int64
-		if e := tx.QueryRow(ctx, "INSERT INTO users(site_id,username,email,password_hash) VALUES($1,$2,$3,$4) RETURNING id", site, username, email, passwordHash).Scan(&id); e != nil {
+		if e := tx.QueryRow(ctx, "INSERT INTO users(site_id,username,email,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING id", site, username, email, passwordHash, role).Scan(&id); e != nil {
 			return e
+		}
+		if inviteID != 0 {
+			if _, e := tx.Exec(ctx, "UPDATE invites SET used_by=$2,used_at=now() WHERE id=$1", inviteID, id); e != nil {
+				return e
+			}
 		}
 		if _, e := tx.Exec(ctx, "INSERT INTO session_families(id,user_id,expires_at) VALUES($1,$2,$3)", family, id, rt); e != nil {
 			return e

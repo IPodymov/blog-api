@@ -17,7 +17,7 @@ check: openapi
 	go vet ./...
 	go test -race ./...
 build:
-	go build ./cmd/api ./cmd/migrate ./cmd/maintenance
+	go build ./cmd/api ./cmd/migrate ./cmd/maintenance ./cmd/admin ./cmd/seed
 
 maintenance:
 	go run ./cmd/maintenance
