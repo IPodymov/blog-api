@@ -45,6 +45,14 @@ func TestPostgresConstraintsAndSessions(t *testing.T) {
 	if e = migrations.Apply(ctx, pool); e != nil {
 		t.Fatal(e)
 	}
+	// Migration 005 seeds a demo author with 10 published articles; the cascade checks below need an empty site.
+	var demo int64
+	if e = pool.QueryRow(ctx, "SELECT count(*) FROM articles a JOIN users u ON u.id=a.author_id WHERE u.username='demo_author' AND a.status='published'").Scan(&demo); e != nil || demo != 10 {
+		t.Fatal("demo articles", demo, e)
+	}
+	if _, e = pool.Exec(ctx, "DELETE FROM users WHERE username='demo_author'"); e != nil {
+		t.Fatal(e)
+	}
 	r := &repository.Store{DB: pool}
 	site, e := r.Site(ctx, "default")
 	if e != nil {

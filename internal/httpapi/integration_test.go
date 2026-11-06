@@ -57,6 +57,10 @@ func TestEndToEnd(t *testing.T) {
 	if e = migrations.Apply(ctx, pool); e != nil {
 		t.Fatal("migration not repeatable", e)
 	}
+	// Remove the demo content of migration 005: the cascade checks below expect an empty site.
+	if _, e = pool.Exec(ctx, "DELETE FROM users WHERE username='demo_author'"); e != nil {
+		t.Fatal(e)
+	}
 	repo := &repository.Store{DB: pool}
 	s := &service.Service{Repo: repo, PublicURL: "https://blog.example", VisitorSecret: strings.Repeat("s", 32), AccessTTL: 15 * time.Minute, RefreshTTL: 24 * time.Hour, ViewInterval: 30 * time.Minute, MaxPeriod: 366}
 	c := config.Config{SecureCookie: true}
