@@ -1,7 +1,7 @@
 # Vercel: API и PostgreSQL
 
 Проект: `ipodymovs-projects/blog-api`, ID `prj_AeHOZb8Zrk49OmBcLcMG53AZcwpY`.
-Назначенный домен: `https://blog-api-zeta-green.vercel.app`.
+Назначенный домен: `https://blog-api-mu-one.vercel.app`.
 Наличие домена само по себе не означает успешный деплой.
 
 ## Архитектура
@@ -77,7 +77,7 @@ API принимает запросы с любого `Origin`. Сайт выб�
 Проверка после деплоя:
 
 ```sh
-curl -i 'https://blog-api-zeta-green.vercel.app/api/v1/articles?api_key=default&limit=1' \
+curl -i 'https://blog-api-mu-one.vercel.app/api/v1/articles?api_key=default&limit=1' \
   -H 'Origin: https://example.com'
 ```
 

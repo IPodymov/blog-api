@@ -88,7 +88,7 @@ T=$(mktemp) && npx vercel@63.1.2 env pull "$T" --environment=production --yes \
 статьи, черновики, просмотры, лайки, комментарии, теги и статистику.
 
 ```sh
-API_URL=https://blog-api-zeta-green.vercel.app \
+API_URL=https://blog-api-mu-one.vercel.app \
 ADMIN_EMAIL=admin@example.org ADMIN_PASSWORD='…' \
 go run ./cmd/seed -site default
 ```
