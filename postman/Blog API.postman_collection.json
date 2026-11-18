@@ -1,0 +1,1432 @@
+{
+  "info": {
+    "name": "Blog API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Регистрация пользователя",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Роль user; с invite_token — роль из приглашения глобального администратора (неверный, использованный, истёкший или чужой токен — 422). Возвращает токены только в этом приватном ответе. Rate limit всех auth: 10 запросов/мин на сетевой адрес.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  pm.environment.set(\"access_token\", data.access_token);",
+                  "  pm.environment.set(\"refresh_token\", data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Вход",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Вход",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  pm.environment.set(\"access_token\", data.access_token);",
+                  "  pm.environment.set(\"refresh_token\", data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ротация refresh-токена",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Одноразовая ротация. Повторное использование использованного токена отзывает всё семейство, включая access-токены. Одновременные refresh-запросы клиент должен сериализовать. Абсолютный срок семейства не продлевается.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  pm.environment.set(\"access_token\", data.access_token);",
+                  "  pm.environment.set(\"refresh_token\", data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Выход и отзыв семейства",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Идемпотентно, включая неизвестный токен корректного формата. Отзывает также все access-токены семейства.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.environment.unset(\"access_token\");",
+                  "  pm.environment.unset(\"refresh_token\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверить приглашение",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invites",
+                "{{token}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Для страницы регистрации: показывает роль и email приглашения, пока оно действует. Использованное, истёкшее, отозванное или чужого сайта — 404."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Публичный профиль",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Email и роль отсутствуют. Счётчики только опубликованных статей."
+          }
+        },
+        {
+          "name": "Опубликованные статьи автора",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{user_id}}",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "published_at",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Опубликованные статьи автора"
+          }
+        },
+        {
+          "name": "Собственный профиль с email",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Собственный профиль с email"
+          }
+        },
+        {
+          "name": "Редактирование собственного профиля",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Редактирование собственного профиля",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Алиса\",\n  \"bio\": \"Автор блога\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Все собственные статьи",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "published_at",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "draft",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Все собственные статьи"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "item": [
+        {
+          "name": "Сводная статистика автора",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/statistics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Все существующие свои статьи. Возвращает 5 самых просматриваемых за период, включая нулевые. Каждый день периода присутствует, в том числе с 0. Лайки и комментарии текущие, не события периода."
+          }
+        },
+        {
+          "name": "Показатели собственных статей",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/statistics/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me",
+                "statistics",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "views_period",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Показатели собственных статей"
+          }
+        },
+        {
+          "name": "Подробная статистика статьи",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/statistics",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Только автор или администратор, включая черновики. UTC, границы дат включительны. Все дни с нулями; просмотры all-time и за период, лайки/комментарии текущие."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Articles",
+      "item": [
+        {
+          "name": "Публичный список публикаций",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "published_at",
+                  "disabled": true
+                },
+                {
+                  "key": "author_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Публичный список публикаций"
+          }
+        },
+        {
+          "name": "Создать статью",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Только роли author и admin; остальные получают 403 с кодом author_role_required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Первый пост\",\n  \"slug\": \"first-post\",\n  \"description\": \"Краткое описание\",\n  \"content\": \"# Привет\\nМой первый пост.\",\n  \"tags\": [],\n  \"status\": \"draft\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const article = pm.response.json();",
+                  "  pm.environment.set(\"article_id\", String(article.id));",
+                  "  pm.environment.set(\"slug\", article.slug);",
+                  "  const etag = pm.response.headers.get(\"ETag\");",
+                  "  if (etag) pm.environment.set(\"etag\", etag);",
+                  "  else pm.environment.unset(\"etag\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Получить статью",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из public_url сайта (если пуст — PUBLIC_SITE_URL) + /articles/{slug}; у черновика null."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const article = pm.response.json();",
+                  "  pm.environment.set(\"article_id\", String(article.id));",
+                  "  pm.environment.set(\"slug\", article.slug);",
+                  "  const etag = pm.response.headers.get(\"ETag\");",
+                  "  if (etag) pm.environment.set(\"etag\", etag);",
+                  "  else pm.environment.unset(\"etag\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Изменить статью",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Автор статьи с ролью author либо администратор. Проверка версии атомарна. Снятие публикации сохраняет просмотры, лайки и комментарии для личной аналитики; из публичной статистики статья исчезает.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Первый пост\",\n  \"slug\": \"first-post\",\n  \"description\": \"Краткое описание\",\n  \"content\": \"# Привет\\nМой первый пост.\",\n  \"tags\": [],\n  \"status\": \"draft\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const article = pm.response.json();",
+                  "  pm.environment.set(\"article_id\", String(article.id));",
+                  "  pm.environment.set(\"slug\", article.slug);",
+                  "  const etag = pm.response.headers.get(\"ETag\");",
+                  "  if (etag) pm.environment.set(\"etag\", etag);",
+                  "  else pm.environment.unset(\"etag\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить статью",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{etag}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Автор либо администратор. Физическое удаление каскадно удаляет комментарии, лайки, связи тегов, дедупликацию и агрегаты просмотров; все показатели автора пересчитываются сразу."
+          }
+        },
+        {
+          "name": "Получить статью",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles-by-slug/{{slug}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles-by-slug",
+                "{{slug}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "GET не регистрирует просмотр. По ID: черновик доступен автору и администратору. По slug: только опубликованная статья. canonical_url строится из public_url сайта (если пуст — PUBLIC_SITE_URL) + /articles/{slug}; у черновика null."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const article = pm.response.json();",
+                  "  pm.environment.set(\"article_id\", String(article.id));",
+                  "  pm.environment.set(\"slug\", article.slug);",
+                  "  const etag = pm.response.headers.get(\"ETag\");",
+                  "  if (etag) pm.environment.set(\"etag\", etag);",
+                  "  else pm.environment.unset(\"etag\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Views",
+      "item": [
+        {
+          "name": "Зарегистрировать фактическое открытие",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/views",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "views"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Без тела. Только опубликованная статья. Автор и администратор: counted=false. Один учитываемый просмотр на посетителя/статью за VIEW_INTERVAL (по умолчанию 30 минут); отклонённый дубль окно не продлевает. Конкурентные запросы защищены транзакцией. Для авторизованного посетителя используется ID аккаунта, для гостя — подписанный сервером случайный cookie blog_visitor. Невалидный cookie заменяется. IP не хранится в аналитике. Лимит 60 запросов/мин на сетевой адрес. События просмотров и уникальные посетители не равнозначны; уникальные посетители не рассчитываются."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "item": [
+        {
+          "name": "Комментарии статьи",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "comments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Публикация доступна всем; черновик только автору и администратору. Плоский список ID ASC; parent_id связывает ответы. Удалённые комментарии представлены tombstone: content пустой, deleted=true; в счётчик не входят."
+          }
+        },
+        {
+          "name": "Добавить комментарий или ответ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "comments"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Только к опубликованным статьям. Максимальная глубина ответов 1; parent_id должен указывать на неудалённый корневой комментарий этой же статьи.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Отличная статья!\",\n  \"parent_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Изменить свой комментарий",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comments/{{comment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "comments",
+                "{{comment_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Автор комментария или администратор; удалённый комментарий изменять нельзя.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Спасибо за статью!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Удалить свой комментарий",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comments/{{comment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "comments",
+                "{{comment_id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Автор комментария или администратор. Soft delete с очисткой текста, ответы сохраняются, повторный DELETE существующего tombstone идемпотентен."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Likes",
+      "item": [
+        {
+          "name": "Поставить лайк",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/like",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "like"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Только опубликованная статья. Идемпотентно: уникальная пара user/article."
+          }
+        },
+        {
+          "name": "Снять лайк",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/articles/{{article_id}}/like",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "articles",
+                "{{article_id}}",
+                "like"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Только опубликованная статья. Идемпотентно, даже если лайка нет."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "item": [
+        {
+          "name": "Теги опубликованных статей",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Site-Key",
+                "value": "{{site_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tags"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Алфавитный порядок name ASC; теги только черновиков не раскрываются."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "Проверка процесса",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Проверка процесса"
+          }
+        },
+        {
+          "name": "Проверка PostgreSQL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Проверка PostgreSQL"
+          }
+        },
+        {
+          "name": "Документация API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/docs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "docs"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Документация API"
+          }
+        },
+        {
+          "name": "Документация API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/openapi.yaml",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "openapi.yaml"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Документация API"
+          }
+        },
+        {
+          "name": "Перенаправление на Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Корень домена перенаправляет на интерактивную документацию /docs."
+          }
+        }
+      ]
+    }
+  ]
+}

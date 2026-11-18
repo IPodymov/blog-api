@@ -1,0 +1,7 @@
+{$API_PROXY_DOMAIN} {
+	reverse_proxy https://blog-api-mu-one.vercel.app {
+		header_up Host blog-api-mu-one.vercel.app
+		header_up -X-Vercel-Forwarded-For
+		header_up -X-Real-IP
+	}
+}

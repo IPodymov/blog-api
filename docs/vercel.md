@@ -113,3 +113,29 @@ cookie имеет `SameSite=Lax`. При добавлении сайта соз�
 Официальная документация: [Go runtime](https://vercel.com/docs/functions/runtimes/go),
 [Cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs),
 [заголовки платформы](https://vercel.com/docs/headers/request-headers).
+
+## Вход через отдельный HTTPS-прокси
+
+[Конфигурация Caddy](../deploy/proxy/Caddyfile) рассчитана на отдельный сервер,
+доступный и клиентам из РФ, и домену API на Vercel. В DNS направьте домен прокси
+на этот сервер, откройте TCP 80 и 443 и задайте переменную окружения
+`API_PROXY_DOMAIN` для процесса Caddy (имя домена без схемы). На сервере
+с Caddy 2 из корня репозитория выполните:
+
+```sh
+caddy validate --config deploy/proxy/Caddyfile
+caddy run --config deploy/proxy/Caddyfile
+```
+
+Caddy выпускает сертификат для домена и передаёт метод, путь, query и тело
+запроса на фиксированный HTTPS-адрес Vercel. Для проверки выполните из
+затронутой сети:
+
+```sh
+curl -i "https://${API_PROXY_DOMAIN}/api/v1/articles?api_key=default&limit=1"
+```
+
+После ответа 200 укажите на фронтенде базовый URL
+`https://<домен-прокси>/api/v1`. При использовании гостевых cookie выбирайте
+поддомен сайта. На стороне Vercel соединения приходят с IP прокси, поэтому
+проверьте ограничения частоты запросов при общей нагрузке пользователей.
