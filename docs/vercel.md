@@ -1,6 +1,6 @@
 # Vercel: API и PostgreSQL
 
-Проект: `ipodymovs-projects/blog-api`, ID `prj_helVcKmAUCbwwH23qqbe7g64EjhH`.
+Проект: `ipodymovs-projects/blog-api`, ID `prj_AeHOZb8Zrk49OmBcLcMG53AZcwpY`.
 Назначенный домен: `https://blog-api-zeta-green.vercel.app`.
 Наличие домена само по себе не означает успешный деплой.
 
@@ -70,7 +70,7 @@ npx vercel@63.1.2 deploy --prod --scope ipodymovs-projects
 ## CORS и ключ сайта
 
 CORS обрабатывает сам Go API, поэтому в `vercel.json` и в переменных окружения
-он не настраивается. Переменная `CORS_ORIGINS` удалена из проекта и не нужна.
+он не настраивается. Переменная `CORS_ORIGINS` не нужна.
 API принимает запросы с любого `Origin`. Сайт выбирается ключом из заголовка
 `X-Site-Key`, заголовка `X-API-Key` или query-параметра `api_key`.
 
