@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.git
+.idea
+.local-proxy
+node_modules
+bin
+coverage.out
+.agents
+skills-lock.json

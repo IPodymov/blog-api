@@ -1,0 +1,10 @@
+{
+ "name": "blog-api-contract-tools",
+ "private": true,
+ "scripts": {
+  "check:openapi": "redocly lint api/openapi.yaml"
+ },
+ "devDependencies": {
+  "@redocly/cli": "2.62.1"
+ }
+}

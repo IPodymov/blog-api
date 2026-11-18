@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.idea/
+bin/
+coverage.out
+.local-proxy/
+node_modules/
+.vercel
+.agents/skills/neon/
+.agents/skills/neon-postgres/
+skills-lock.json
+.codex/
+.mcp.json
+.DS_Store
+/server
