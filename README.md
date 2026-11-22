@@ -1,6 +1,6 @@
 # Blog REST API
 
-Развёртывание API в Vercel с PostgreSQL Neon: [docs/vercel.md](docs/vercel.md).
+Развёртывание API в Render с PostgreSQL Neon: [docs/render.md](docs/render.md).
 
 Один API обслуживает много сайтов с изолированными данными. Каждый запрос к `/api/v1` передаёт заголовок `X-Site-Key`. Добавление сайта, правила изоляции и локальная разработка: [docs/sites.md](docs/sites.md).
 
@@ -69,8 +69,7 @@ internal/service/    бизнес-правила, права, bcrypt, токен
 internal/repository/ параметризованный SQL, транзакции и конкурентность
 internal/httpapi/    chi, обработчики, decode, CORS, rate limit, HTTP errors
 migrations/          встроенные SQL-миграции
-scripts/             сборка для Vercel
-docs/                API, сайты, архитектура, Vercel, отчёт о проверке
+docs/                API, сайты, архитектура, Render, отчёт о проверке
 .github/workflows/   CI: lint, unit, интеграционные тесты, контракт, Docker
 ```
 

@@ -35,7 +35,7 @@ query-параметром `api_key`. Если указано несколько
 ```html
 <div id="articles"></div>
 <script>
-  const API_URL = 'https://blog-api-mu-one.vercel.app/api/v1';
+  const API_URL = 'https://YOUR-SERVICE.onrender.com/api/v1';
   const API_KEY = 'my-blog'; // ключ сайта
 
   fetch(`${API_URL}/articles?api_key=${API_KEY}&limit=10`)

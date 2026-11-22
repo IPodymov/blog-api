@@ -1,6 +1,6 @@
 // Command seed fills a site with demo content through the public HTTP API and doubles as a smoke test.
 //
-//	API_URL=https://blog-api-mu-one.vercel.app ADMIN_EMAIL=... ADMIN_PASSWORD=... go run ./cmd/seed -site default
+//	API_URL=https://YOUR-SERVICE.onrender.com ADMIN_EMAIL=... ADMIN_PASSWORD=... go run ./cmd/seed -site default
 //
 // It is idempotent: demo accounts get fresh passwords, existing articles are kept.
 // All demo articles carry the "demo" tag.

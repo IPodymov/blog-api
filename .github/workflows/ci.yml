@@ -32,7 +32,7 @@ jobs:
           go vet -tags=integration ./...
       - name: Unit tests
         run: go test -race -count=1 ./...
-      - name: Build (Vercel flags)
+      - name: Build API
         run: go build -buildvcs=false -trimpath -ldflags '-s -w' -o server ./cmd/api && go build ./cmd/migrate ./cmd/maintenance
 
   integration:

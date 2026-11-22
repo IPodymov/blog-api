@@ -22,14 +22,7 @@ go run ./cmd/admin create -email admin@example.org
 go run ./cmd/admin reset-password -email admin@example.org
 ```
 
-Для production нужен `DATABASE_URL_UNPOOLED` из Vercel. Не сохраняйте его в
-репозитории; например, скачайте во временный файл и удалите после запуска:
-
-```sh
-T=$(mktemp) && npx vercel@63.1.2 env pull "$T" --environment=production --yes \
-  && set -a && . "$T" && set +a && rm -f "$T" \
-  && go run ./cmd/admin create -email admin@example.org
-```
+Для production задайте прямой адрес PostgreSQL в переменной окружения `DATABASE_URL_UNPOOLED` перед запуском команды.
 
 ## Маршруты
 
@@ -88,7 +81,7 @@ T=$(mktemp) && npx vercel@63.1.2 env pull "$T" --environment=production --yes \
 статьи, черновики, просмотры, лайки, комментарии, теги и статистику.
 
 ```sh
-API_URL=https://blog-api-mu-one.vercel.app \
+API_URL=https://YOUR-SERVICE.onrender.com \
 ADMIN_EMAIL=admin@example.org ADMIN_PASSWORD='…' \
 go run ./cmd/seed -site default
 ```

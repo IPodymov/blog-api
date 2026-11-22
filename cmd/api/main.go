@@ -36,7 +36,7 @@ func run(log *slog.Logger) error {
 	if e != nil {
 		return errors.New("database configuration failed")
 	}
-	// Keep idle connections low when Vercel scales instances horizontally.
+	// Keep idle connections low when scaling horizontally.
 	poolConfig.MaxConns = 5
 	poolConfig.MinConns = 0
 	poolConfig.MaxConnIdleTime = time.Minute

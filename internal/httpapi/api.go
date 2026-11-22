@@ -14,7 +14,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -314,7 +313,7 @@ func (a *API) middleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		host := clientIP(r, os.Getenv("VERCEL") == "1")
+		host := clientIP(r)
 		key := service.Hash(host)
 		limit := 300
 		group := "general"
@@ -381,13 +380,7 @@ func requestSiteKey(r *http.Request) string {
 	return r.URL.Query().Get("api_key")
 }
 
-func clientIP(r *http.Request, onVercel bool) string {
-	// Only trust the platform header when running behind Vercel ingress.
-	if onVercel {
-		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Vercel-Forwarded-For"))); ip != nil {
-			return ip.String()
-		}
-	}
+func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
