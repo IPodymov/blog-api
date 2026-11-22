@@ -2,7 +2,7 @@
 
 В Render Dashboard выберите New → Web Service и подключите репозиторий IPodymov/blog-api. Выберите ветку main, среду Docker, регион Frankfurt и тип инстанса Free.
 
-В поле Docker Command укажите `/bin/sh -c '/app/migrate && exec /app/api'`, в Health Check Path — `/ready`. Порт передаёт Render через PORT.
+Оставьте Docker Command пустым. При запуске в Render образ применяет миграции и запускает API. В Health Check Path укажите `/ready`. Порт передаёт Render через PORT.
 
 В Environment укажите DATABASE_URL существующей базы Neon, прямое подключение к той же базе в DATABASE_URL_UNPOOLED, действующий VISITOR_SECRET и публичный адрес сайта в PUBLIC_SITE_URL.
 

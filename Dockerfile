@@ -10,4 +10,4 @@ WORKDIR /app
 COPY --from=build /out/ /app/
 USER app
 EXPOSE 8080
-CMD ["/app/api"]
+CMD ["sh", "-ec", "if [ \"${RENDER:-}\" = true ]; then /app/migrate; fi; exec /app/api"]
