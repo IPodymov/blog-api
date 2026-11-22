@@ -1,7 +1,11 @@
-# Развёртывание API на Render
+# Бесплатный Web Service на Render
 
-[Создать Blueprint из репозитория](https://render.com/deploy?repo=https://github.com/IPodymov/blog-api). Выберите ветку main. Введите адрес существующей базы Neon в DATABASE_URL, прямое подключение к той же базе в DATABASE_URL_UNPOOLED, действующий VISITOR_SECRET и публичный адрес сайта в PUBLIC_SITE_URL.
+В Render Dashboard выберите New → Web Service и подключите репозиторий IPodymov/blog-api. Выберите ветку main, среду Docker, регион Frankfurt и тип инстанса Free.
 
-Web Service запускает миграции перед стартом API и принимает запросы на порту из PORT. Render проверяет готовность через /ready. Отдельный платный Cron Job запускает обслуживание ежедневно в 03:00 UTC.
+В поле Docker Command укажите `/bin/sh -c '/app/migrate && exec /app/api'`, в Health Check Path — `/ready`. Порт передаёт Render через PORT.
+
+В Environment укажите DATABASE_URL существующей базы Neon, прямое подключение к той же базе в DATABASE_URL_UNPOOLED, действующий VISITOR_SECRET и публичный адрес сайта в PUBLIC_SITE_URL.
+
+На бесплатном инстансе отдельное задание по расписанию не создаётся. Для очистки истёкших сессий и записей дедупликации доступна команда `go run ./cmd/maintenance` с окружением целевой базы.
 
 После деплоя проверьте /ready на домене из карточки Web Service. Укажите этот домен с https:// в base_url окружения Postman. При использовании Caddy задайте API_UPSTREAM_HOST равным имени хоста без схемы.
